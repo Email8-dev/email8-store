@@ -1,0 +1,8 @@
+{
+  "vertical": "email8",
+  "services": [
+    {
+      "service_type": "email8:store"
+    }
+  ]
+}
