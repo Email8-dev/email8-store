@@ -139,7 +139,10 @@ pub async fn admin_data(
                 "default_account_quota_bytes": policy.unwrap_or(10_737_418_240),
             })))
         }
-        other => Err((StatusCode::NOT_FOUND, format!("Unknown admin data page: {other}"))),
+        other => Err((
+            StatusCode::NOT_FOUND,
+            format!("Unknown admin data page: {other}"),
+        )),
     }
 }
 

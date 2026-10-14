@@ -24,7 +24,9 @@ impl StoreConfig {
             port: env_u16("EMAIL8_STORE_PORT", 0),
             database_url: env_string("EMAIL8_STORE_DATABASE_URL")
                 .or_else(|| env_string("DATABASE_URL"))
-                .unwrap_or_else(|| sentin8::config::Sentin8Config::default_database_url().to_string()),
+                .unwrap_or_else(|| {
+                    sentin8::config::Sentin8Config::default_database_url().to_string()
+                }),
             sentin8_bus_url: env_string("SENTIN8_BUS_URL").unwrap_or_else(|| cfg.sentin8_bus_url()),
             sentin8_storage_url: env_string("SENTIN8_STORAGE_URL")
                 .unwrap_or_else(|| format!("https://{}", cfg.platform_domain("storage"))),

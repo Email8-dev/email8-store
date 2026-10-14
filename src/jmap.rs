@@ -27,13 +27,20 @@ pub async fn session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
-    let m = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let m = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let account_id = if m.account_id != Uuid::nil() {
         m.account_id
     } else {
         let mut conn = state.pool.acquire().await.map_err(err_db)?;
         auth::set_mail_tenant_context(&mut conn, m.env_id(), Uuid::nil()).await;
-        auth::bind_account(&mut conn, &m).await.map_err(|e| e)?
+        auth::bind_account(&mut conn, &m).await?
     };
     let account_str = account_id.to_string();
     let caps = json!({
@@ -72,7 +79,14 @@ pub async fn api(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, (StatusCode, String)> {
-    let m = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let m = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let req = jmap::parse(&body).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Resolve the account binding once for the whole batch.
@@ -164,18 +178,26 @@ async fn dispatch(
         ("Calendar", "get") => crate::jmap_objects::calendar_get(&mut conn, account_id, &args)
             .await
             .map_err(err_string),
-        ("CalendarEvent", "get") => crate::jmap_objects::calendar_event_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("AddressBook", "get") => crate::jmap_objects::addressbook_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("ContactCard", "get") => crate::jmap_objects::contact_card_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("PushSubscription", "get") => crate::jmap_objects::push_subscription_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
+        ("CalendarEvent", "get") => {
+            crate::jmap_objects::calendar_event_get(&mut conn, account_id, &args)
+                .await
+                .map_err(err_string)
+        }
+        ("AddressBook", "get") => {
+            crate::jmap_objects::addressbook_get(&mut conn, account_id, &args)
+                .await
+                .map_err(err_string)
+        }
+        ("ContactCard", "get") => {
+            crate::jmap_objects::contact_card_get(&mut conn, account_id, &args)
+                .await
+                .map_err(err_string)
+        }
+        ("PushSubscription", "get") => {
+            crate::jmap_objects::push_subscription_get(&mut conn, account_id, &args)
+                .await
+                .map_err(err_string)
+        }
         ("PushSubscription", "set") => {
             crate::jmap_objects::push_subscription_set(&mut conn, m.env_id(), account_id, &args)
                 .await
@@ -215,7 +237,15 @@ pub async fn jmap_ws(
     if let Ok(val) = axum::http::HeaderValue::from_str(&format!("Bearer {}", q.access_token)) {
         headers.insert(axum::http::header::AUTHORIZATION, val);
     }
-    let m = match auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await {
+    let m = match auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await
+    {
         Ok(m) => m,
         Err((code, msg)) => return (code, msg).into_response(),
     };
@@ -293,7 +323,10 @@ async fn handle_ws_batch(
         match jmap::capability_for_method(&object) {
             Some(cap) if req.using.iter().any(|u| u == cap) => {}
             _ => {
-                resp.push_error(jmap::RequestError::UnknownCapability(name.clone()).to_string(), call_id.clone());
+                resp.push_error(
+                    jmap::RequestError::UnknownCapability(name.clone()).to_string(),
+                    call_id.clone(),
+                );
                 continue;
             }
         }
@@ -322,7 +355,14 @@ pub async fn download(
     headers: HeaderMap,
     Path((_account_id, blob_hash, name)): Path<(Uuid, String, String)>,
 ) -> Result<Response, (StatusCode, String)> {
-    let m = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let m = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let _ = m;
     let client = crate::storage_auth::storage_client(
         &state.pool,
@@ -330,14 +370,17 @@ pub async fn download(
         &["storage:env:read"],
     )
     .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let data = client
         .get("", "", &format!("email8/blobs/{blob_hash}"))
         .await
         .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
     Ok(Response::builder()
         .header("Content-Type", "application/octet-stream")
-        .header("Content-Disposition", format!("attachment; filename=\"{name}\""))
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{name}\""),
+        )
         .body(Body::from(data))
         .unwrap())
 }
@@ -349,7 +392,14 @@ pub async fn upload(
     Path(account_id): Path<Uuid>,
     body: axum::body::Bytes,
 ) -> Result<Response, (StatusCode, String)> {
-    let m = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let m = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     if account_id == Uuid::nil() {
         return Err((StatusCode::NOT_FOUND, "account not found".into()));
     }
@@ -366,7 +416,10 @@ pub async fn upload(
     .await?
     .0;
     if !verdict.allowed {
-        return Err((StatusCode::INSUFFICIENT_STORAGE, "blob quota exceeded".into()));
+        return Err((
+            StatusCode::INSUFFICIENT_STORAGE,
+            "blob quota exceeded".into(),
+        ));
     }
 
     // Content-addressed upload: hash → Storage put → reserved link row.
@@ -377,9 +430,15 @@ pub async fn upload(
         &["storage:env:read"],
     )
     .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     client
-        .put("", "", &format!("email8/blobs/{hash}"), "application/octet-stream", body.to_vec())
+        .put(
+            "",
+            "",
+            &format!("email8/blobs/{hash}"),
+            "application/octet-stream",
+            body.to_vec(),
+        )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
@@ -395,8 +454,13 @@ pub async fn upload(
     .await
     .map_err(err_db)?;
 
-    Ok(Json(jmap::upload_result(&account_id.to_string(), &hash, "application/octet-stream", body.len() as i64))
-        .into_response())
+    Ok(Json(jmap::upload_result(
+        &account_id.to_string(),
+        &hash,
+        "application/octet-stream",
+        body.len() as i64,
+    ))
+    .into_response())
 }
 
 /// `GET /jmap/eventsource` — SSE state-change stream (RFC 8620 §7.1).
@@ -415,9 +479,17 @@ pub async fn event_source(
     headers: HeaderMap,
     Query(q): Query<EventSourceQuery>,
 ) -> Result<Response, (StatusCode, String)> {
-    let m = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let m = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let _ = q;
-    let stream = crate::push_stream::state_stream(state.pool.clone(), m.env_id(), m.auth.sub().to_string());
+    let stream =
+        crate::push_stream::state_stream(state.pool.clone(), m.env_id(), m.auth.sub().to_string());
     Ok(Response::builder()
         .header("Content-Type", "text/event-stream")
         .header("Cache-Control", "no-cache")

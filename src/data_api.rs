@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use email8::contracts::{
     BlobQuotaVerdict, ChangesSinceRequest, ChangesSinceResponse, CreateMailboxRequest,
-    IngestedEmail, IngestMessage, MailboxDto, ResolveAddressRequest, ResolvedAddress,
+    IngestMessage, IngestedEmail, MailboxDto, ResolveAddressRequest, ResolvedAddress,
     SubmitRequest, SubmitResponse,
 };
 use sqlx::Row;
@@ -48,21 +48,40 @@ pub async fn resolve_address(
     headers: HeaderMap,
     Json(req): Json<ResolveAddressRequest>,
 ) -> Result<Json<ResolvedAddress>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, Uuid::nil()).await;
     let lower = req.address.to_ascii_lowercase();
 
     // Group expansion first.
-    let members = store_ops::group_members(&mut conn, req.env_id, &lower).await.map_err(err_op)?;
+    let members = store_ops::group_members(&mut conn, req.env_id, &lower)
+        .await
+        .map_err(err_op)?;
     if !members.is_empty() {
-        return Ok(Json(ResolvedAddress::Group { group_id: Uuid::nil(), members }));
+        return Ok(Json(ResolvedAddress::Group {
+            group_id: Uuid::nil(),
+            members,
+        }));
     }
-    match store_ops::resolve_address(&mut conn, req.env_id, &req.address).await.map_err(err_op)? {
-        Some(account_id) => {
-            Ok(Json(ResolvedAddress::Account { account_id, name: req.address.clone(), address: req.address }))
-        }
-        None => Ok(Json(ResolvedAddress::External { address: req.address })),
+    match store_ops::resolve_address(&mut conn, req.env_id, &req.address)
+        .await
+        .map_err(err_op)?
+    {
+        Some(account_id) => Ok(Json(ResolvedAddress::Account {
+            account_id,
+            name: req.address.clone(),
+            address: req.address,
+        })),
+        None => Ok(Json(ResolvedAddress::External {
+            address: req.address,
+        })),
     }
 }
 
@@ -72,7 +91,14 @@ pub async fn ingest(
     headers: HeaderMap,
     Json(req): Json<IngestMessage>,
 ) -> Result<Json<IngestedEmail>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     // Fetch the raw bytes from Storage before opening the transaction.
     let raw = fetch_blob(&state, &req.blob_hash).await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
@@ -95,26 +121,30 @@ pub async fn ingest(
     // `user_id` (the principal's Sentin8:Auth sub) rides the payload so
     // the BFF /subscribe per-user filter (platform story 0.5) can fan the
     // event to the owning session only.
-    let user_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT sentin8_auth_user_id FROM email8.principals WHERE id = $1",
+    let user_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT sentin8_auth_user_id FROM email8.principals WHERE id = $1")
+            .bind(req.account_id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten();
+    emit_event(
+        &state.pool,
+        req.env_id,
+        "email8:mail:email:ingested",
+        serde_json::json!({
+            "env_id": req.env_id,
+            "account_id": req.account_id,
+            "user_id": user_id,
+            "email_id": outcome.email_id,
+            "thread_id": outcome.thread_id,
+            "mailboxes": outcome.mailboxes.iter().map(|(m, _)| m).collect::<Vec<_>>(),
+            "imap_uids": outcome.mailboxes.iter().map(|(_, u)| u).collect::<Vec<_>>(),
+            "change_id": outcome.email_change_id,
+            "size": outcome.size,
+            "is_spam": outcome.is_spam,
+        }),
     )
-    .bind(req.account_id)
-    .fetch_optional(&state.pool)
-    .await
-    .ok()
-    .flatten();
-    emit_event(&state.pool, req.env_id, "email8:mail:email:ingested", serde_json::json!({
-        "env_id": req.env_id,
-        "account_id": req.account_id,
-        "user_id": user_id,
-        "email_id": outcome.email_id,
-        "thread_id": outcome.thread_id,
-        "mailboxes": outcome.mailboxes.iter().map(|(m, _)| m).collect::<Vec<_>>(),
-        "imap_uids": outcome.mailboxes.iter().map(|(_, u)| u).collect::<Vec<_>>(),
-        "change_id": outcome.email_change_id,
-        "size": outcome.size,
-        "is_spam": outcome.is_spam,
-    }))
     .await;
     // Story 4.6 — an iMIP (RFC 6047 text/calendar) ingest is also a
     // groupware domain event: the calendar row was filed, so fan out the
@@ -142,13 +172,18 @@ pub async fn ingest(
     }
     // Deferred merge when the thread key hit multiple threads.
     if outcome.thread_merge_candidates.len() > 1 {
-        emit_event(&state.pool, req.env_id, "email8:mail:thread:merge", serde_json::json!({
-            "env_id": req.env_id,
-            "account_id": req.account_id,
-            "surviving_thread_id": outcome.thread_id,
-            "merged_thread_ids": outcome.thread_merge_candidates,
-            "email_id": outcome.email_id,
-        }))
+        emit_event(
+            &state.pool,
+            req.env_id,
+            "email8:mail:thread:merge",
+            serde_json::json!({
+                "env_id": req.env_id,
+                "account_id": req.account_id,
+                "surviving_thread_id": outcome.thread_id,
+                "merged_thread_ids": outcome.thread_merge_candidates,
+                "email_id": outcome.email_id,
+            }),
+        )
         .await;
     }
 
@@ -159,7 +194,10 @@ pub async fn ingest(
         mailboxes: outcome
             .mailboxes
             .iter()
-            .map(|(m, u)| email8::contracts::MailboxUid { mailbox_id: *m, imap_uid: *u })
+            .map(|(m, u)| email8::contracts::MailboxUid {
+                mailbox_id: *m,
+                imap_uid: *u,
+            })
             .collect(),
         change_id: outcome.email_change_id,
         size: outcome.size,
@@ -179,7 +217,14 @@ pub async fn list_mailboxes(
     headers: HeaderMap,
     Query(q): Query<ListMailboxesQuery>,
 ) -> Result<Json<Vec<MailboxDto>>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
     let rows = sqlx::query(
@@ -214,7 +259,14 @@ pub async fn create_mailbox(
     headers: HeaderMap,
     Json(req): Json<CreateMailboxRequest>,
 ) -> Result<Json<MailboxDto>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
     // Entity ids are DB-generated UUIDs; the sequences table only backs
@@ -255,7 +307,14 @@ pub async fn changes_since(
     headers: HeaderMap,
     Json(req): Json<ChangesSinceRequest>,
 ) -> Result<Json<ChangesSinceResponse>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let collection = email8::contracts::Collection::from_u16(req.collection)
         .ok_or((StatusCode::BAD_REQUEST, "unknown collection".into()))?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
@@ -286,7 +345,14 @@ pub async fn submit(
     headers: HeaderMap,
     Json(req): Json<SubmitRequest>,
 ) -> Result<Json<SubmitResponse>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:submission:send").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:submission:send",
+    )
+    .await?;
     // Verify the user's identity binding: return_path must be one of the
     // caller's addresses (master design §4.4 — enforced again at Mta).
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
@@ -301,13 +367,19 @@ pub async fn submit(
     .await
     .map_err(err_db)?;
     if known.is_none() && !req.return_path.is_empty() {
-        return Err((StatusCode::FORBIDDEN, "return_path is not one of the caller's addresses".into()));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "return_path is not one of the caller's addresses".into(),
+        ));
     }
 
     // Proxy to Mta with the caller's token attached (delegated user send).
     let client = reqwest::Client::new();
     let token = auth_header(&headers);
-    let url = format!("{}/v1/internal/submit", state.config.mta_url.trim_end_matches('/'));
+    let url = format!(
+        "{}/v1/internal/submit",
+        state.config.mta_url.trim_end_matches('/')
+    );
     let resp = client
         .post(&url)
         .header("Authorization", token)
@@ -320,8 +392,10 @@ pub async fn submit(
         let body = resp.text().await.unwrap_or_default();
         return Err((status, body));
     }
-    let verdict: SubmitResponse =
-        resp.json().await.map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let verdict: SubmitResponse = resp
+        .json()
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok(Json(verdict))
 }
 
@@ -331,7 +405,14 @@ pub async fn blob_quota(
     headers: HeaderMap,
     Json(req): Json<email8::contracts::BlobQuotaCheck>,
 ) -> Result<Json<BlobQuotaVerdict>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
     let used: i64 = sqlx::query_scalar(
@@ -351,7 +432,11 @@ pub async fn blob_quota(
     .await
     .map_err(err_db)?
     .unwrap_or(10 * 1024 * 1024 * 1024);
-    Ok(Json(BlobQuotaVerdict { allowed: policy == 0 || used + req.size <= policy, used_bytes: used, quota_bytes: if policy == 0 { None } else { Some(policy) } }))
+    Ok(Json(BlobQuotaVerdict {
+        allowed: policy == 0 || used + req.size <= policy,
+        used_bytes: used,
+        quota_bytes: if policy == 0 { None } else { Some(policy) },
+    }))
 }
 
 /// `GET /v1/internal/email/{email_id}` — fetch one email's metadata (Access
@@ -368,7 +453,14 @@ pub async fn get_email(
     headers: HeaderMap,
     Path((env_id, account_id, email_id)): Path<(Uuid, Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, env_id, account_id).await;
     let row = sqlx::query(
@@ -429,7 +521,14 @@ pub async fn list_mailbox_emails(
     headers: HeaderMap,
     Query(q): Query<MailboxEmailsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
     let rows = sqlx::query(
@@ -477,12 +576,15 @@ pub async fn destroy_emails(
     headers: HeaderMap,
     Json(req): Json<DestroyEmailsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
-    let mut tx = state
-        .pool
-        .begin()
-        .await
-        .map_err(err_db)?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     for id in &req.email_ids {
         sqlx::query(
@@ -510,7 +612,9 @@ pub async fn destroy_emails(
         .map_err(err_db)?;
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "destroyed": req.email_ids.len() })))
+    Ok(Json(
+        serde_json::json!({ "destroyed": req.email_ids.len() }),
+    ))
 }
 
 /// `POST /v1/internal/email/store` — store the raw blob for an APPEND
@@ -520,12 +624,30 @@ pub async fn store_raw_blob(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let hash = blake3_hash(&body);
-    let storage = crate::storage_auth::storage_client(&state.pool, &state.config.sentin8_storage_url, &["storage:env:read"]).await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let storage = crate::storage_auth::storage_client(
+        &state.pool,
+        &state.config.sentin8_storage_url,
+        &["storage:env:read"],
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     storage
-        .put_if_absent("", "", &format!("email8/blobs/{hash}"), "application/octet-stream", body.to_vec())
+        .put_if_absent(
+            "",
+            "",
+            &format!("email8/blobs/{hash}"),
+            "application/octet-stream",
+            body.to_vec(),
+        )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok(Json(serde_json::json!({
@@ -554,7 +676,14 @@ pub async fn set_email_keywords(
     headers: HeaderMap,
     Json(req): Json<KeywordsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     // Normalize: lowercase, strip backslashes.
@@ -634,7 +763,14 @@ pub async fn copy_emails(
     headers: HeaderMap,
     Json(req): Json<CopyEmailsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     for id in &req.email_ids {
@@ -680,17 +816,35 @@ pub async fn ingest_append(
     headers: HeaderMap,
     Json(req): Json<AppendRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     use base64::Engine;
     let raw = base64::engine::general_purpose::STANDARD
         .decode(&req.raw_b64)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let hash = blake3_hash(&raw);
     // Blob → Storage.
-    let storage = crate::storage_auth::storage_client(&state.pool, &state.config.sentin8_storage_url, &["storage:env:write"]).await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let storage = crate::storage_auth::storage_client(
+        &state.pool,
+        &state.config.sentin8_storage_url,
+        &["storage:env:write"],
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     storage
-        .put_if_absent("", "", &format!("email8/blobs/{hash}"), "application/octet-stream", raw.clone())
+        .put_if_absent(
+            "",
+            "",
+            &format!("email8/blobs/{hash}"),
+            "application/octet-stream",
+            raw.clone(),
+        )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     // Ingest into the target mailbox.
@@ -731,7 +885,14 @@ pub async fn sieve_list(
     headers: HeaderMap,
     Json(req): Json<SieveBase>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
     let rows = sqlx::query(
@@ -770,7 +931,14 @@ pub async fn sieve_get(
     headers: HeaderMap,
     Json(req): Json<SieveGet>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
     let row: Option<(String,)> = sqlx::query_as(
@@ -784,8 +952,13 @@ pub async fn sieve_get(
     let Some((blob_hash,)) = row else {
         return Ok(Json(serde_json::json!({})));
     };
-    let storage = crate::storage_auth::storage_client(&state.pool, &state.config.sentin8_storage_url, &["storage:env:write"]).await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let storage = crate::storage_auth::storage_client(
+        &state.pool,
+        &state.config.sentin8_storage_url,
+        &["storage:env:write"],
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let bytes = storage
         .get("", "", &format!("email8/sieve/{blob_hash}"))
         .await
@@ -810,12 +983,30 @@ pub async fn sieve_put(
     headers: HeaderMap,
     Json(req): Json<SievePut>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let hash = blake3_hash(req.source.as_bytes());
-    let storage = crate::storage_auth::storage_client(&state.pool, &state.config.sentin8_storage_url, &["storage:env:write"]).await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    let storage = crate::storage_auth::storage_client(
+        &state.pool,
+        &state.config.sentin8_storage_url,
+        &["storage:env:write"],
+    )
+    .await
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     storage
-        .put("", "", &format!("email8/sieve/{hash}"), "application/sieve", req.source.as_bytes().to_vec())
+        .put(
+            "",
+            "",
+            &format!("email8/sieve/{hash}"),
+            "application/sieve",
+            req.source.as_bytes().to_vec(),
+        )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
@@ -859,7 +1050,14 @@ pub async fn sieve_set_active(
     headers: HeaderMap,
     Json(req): Json<SieveActive>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     sqlx::query("UPDATE email8.sieve_scripts SET is_active = false WHERE account_id = $1")
@@ -879,7 +1077,8 @@ pub async fn sieve_set_active(
             .execute(&mut *tx)
             .await
             .map_err(err_db)?;
-            if let Some(id) = sqlx::query_scalar::<_, Uuid>("SELECT id FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2",
+            if let Some(id) = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2",
             )
             .bind(req.account_id)
             .bind(name)
@@ -920,18 +1119,26 @@ pub async fn sieve_delete(
     headers: HeaderMap,
     Json(req): Json<SieveDelete>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
-    let result = sqlx::query(
-        "DELETE FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2",
-    )
-    .bind(req.account_id)
-    .bind(&req.name)
-    .execute(&mut *conn)
-    .await
-    .map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "deleted": result.rows_affected() > 0 })))
+    let result =
+        sqlx::query("DELETE FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2")
+            .bind(req.account_id)
+            .bind(&req.name)
+            .execute(&mut *conn)
+            .await
+            .map_err(err_db)?;
+    Ok(Json(
+        serde_json::json!({ "deleted": result.rows_affected() > 0 }),
+    ))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -948,7 +1155,14 @@ pub async fn sieve_rename(
     headers: HeaderMap,
     Json(req): Json<SieveRename>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:sieve:manage").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:sieve:manage",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
     let result = sqlx::query(
@@ -1002,7 +1216,7 @@ async fn fetch_blob(state: &AppState, blob_hash: &str) -> Result<Vec<u8>, (Statu
         &["storage:env:read"],
     )
     .await
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     client
         .get("", "", &format!("email8/blobs/{blob_hash}"))
         .await
@@ -1010,7 +1224,12 @@ async fn fetch_blob(state: &AppState, blob_hash: &str) -> Result<Vec<u8>, (Statu
 }
 
 /// Append an event to the shared `sentin8.bus_inbox` for Bus relay.
-async fn emit_event(pool: &sqlx::PgPool, env_id: Uuid, event_type: &str, payload: serde_json::Value) {
+async fn emit_event(
+    pool: &sqlx::PgPool,
+    env_id: Uuid,
+    event_type: &str,
+    payload: serde_json::Value,
+) {
     let mut conn = match pool.acquire().await {
         Ok(c) => c,
         Err(e) => {
@@ -1051,7 +1270,14 @@ pub async fn acl_grant(
     headers: HeaderMap,
     Json(req): Json<AclGrantRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     sqlx::query(
@@ -1103,7 +1329,14 @@ pub async fn acl_revoke(
     headers: HeaderMap,
     Json(req): Json<AclRevokeRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:write").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:write",
+    )
+    .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
     let deleted = sqlx::query(
@@ -1151,7 +1384,14 @@ pub async fn acl_effective_rights(
     headers: HeaderMap,
     Query(q): Query<AclRightsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let _a = auth::require_mail_auth(&state.config, &state.workload_registry, &state.core.admin.policy, &headers, "email8:mail:read").await?;
+    let _a = auth::require_mail_auth(
+        &state.config,
+        &state.workload_registry,
+        &state.core.admin.policy,
+        &headers,
+        "email8:mail:read",
+    )
+    .await?;
     let mut conn = state.pool.acquire().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
     let grantee = q.grantee_account_id.unwrap_or(q.account_id);

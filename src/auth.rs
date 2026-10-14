@@ -64,12 +64,25 @@ pub async fn require_mail_auth(
     if let Some(auth) = require_workload_auth(workload_registry, engine, headers, action).await? {
         return Ok(auth);
     }
-    let auth = sentin8::auth::client::verify_bearer_token(&config.sentin8_auth_client, headers).await?;
-    sentin8::shell::policy::require(engine, &auth, headers, sentin8::shield::EvalTarget::new(action)).await?;
+    let auth =
+        sentin8::auth::client::verify_bearer_token(&config.sentin8_auth_client, headers).await?;
+    sentin8::shell::policy::require(
+        engine,
+        &auth,
+        headers,
+        sentin8::shield::EvalTarget::new(action),
+    )
+    .await?;
     if Uuid::parse_str(auth.sub()).is_err() {
-        return Err((StatusCode::UNAUTHORIZED, "token subject is not a user id".into()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "token subject is not a user id".into(),
+        ));
     }
-    Ok(MailAuth { auth, account_id: Uuid::nil() })
+    Ok(MailAuth {
+        auth,
+        account_id: Uuid::nil(),
+    })
 }
 
 /// The certificate path of [`require_mail_auth`]: resolve the presented
@@ -89,11 +102,8 @@ async fn require_workload_auth(
     headers: &HeaderMap,
     action: &str,
 ) -> Result<Option<MailAuth>, (StatusCode, String)> {
-    let Some(identity) = sentin8::auth::client::resolve_workload_identity(
-        workload_registry,
-        headers,
-    )
-    .await?
+    let Some(identity) =
+        sentin8::auth::client::resolve_workload_identity(workload_registry, headers).await?
     else {
         return Ok(None); // no client certificate presented → bearer path
     };
@@ -101,8 +111,17 @@ async fn require_workload_auth(
         identity,
         sentin8::middleware::context::TLSContext::from_headers(headers).env_id,
     );
-    sentin8::shell::policy::require(engine, &auth, headers, sentin8::shield::EvalTarget::new(action)).await?;
-    Ok(Some(MailAuth { auth, account_id: Uuid::nil() }))
+    sentin8::shell::policy::require(
+        engine,
+        &auth,
+        headers,
+        sentin8::shield::EvalTarget::new(action),
+    )
+    .await?;
+    Ok(Some(MailAuth {
+        auth,
+        account_id: Uuid::nil(),
+    }))
 }
 
 /// Complete the account binding on a connection that already has the
@@ -111,9 +130,12 @@ pub async fn bind_account(
     conn: &mut PgConnection,
     mail: &MailAuth,
 ) -> Result<Uuid, (StatusCode, String)> {
-    let sub = mail
-        .user_sub()
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "token subject is not a user id".into()))?;
+    let sub = mail.user_sub().ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "token subject is not a user id".into(),
+        )
+    })?;
     let row: Option<(Uuid,)> = sqlx::query_as(
         "SELECT id FROM email8.principals WHERE env_id = $1 AND sentin8_auth_user_id = $2",
     )
@@ -130,11 +152,7 @@ pub async fn bind_account(
 /// Runs `SELECT sentin8_set_tenant_context($1)` (transaction-local) and
 /// then binds `app.account_id` for the holder-scoped RLS policies. MUST
 /// be awaited on the same connection as the data query (§4.3d).
-pub async fn set_mail_tenant_context(
-    conn: &mut PgConnection,
-    env_id: Uuid,
-    account_id: Uuid,
-) {
+pub async fn set_mail_tenant_context(conn: &mut PgConnection, env_id: Uuid, account_id: Uuid) {
     let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
         .bind(env_id)
         .execute(&mut *conn)

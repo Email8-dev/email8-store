@@ -5,9 +5,13 @@
 
 //! Email8:Store admin UI (RFW) — page definitions served to Sentin8:Dash.
 
-use axum::{extract::{Path, State}, http::HeaderMap, Json};
-use sentin8::rfw::response::AdminUiResponse;
+use axum::{
+    extract::{Path, State},
+    http::HeaderMap,
+    Json,
+};
 use sentin8::rfw::page::*;
+use sentin8::rfw::response::AdminUiResponse;
 use sentin8::rfw::widget::*;
 
 use crate::data_api::AppState;
@@ -33,10 +37,17 @@ pub async fn get_admin_ui(
         "domains" => domains_page(),
         "groups" => groups_page(),
         "quotas" => quotas_page(),
-        _ => return Err((axum::http::StatusCode::NOT_FOUND, format!("Unknown admin UI page: {page}"))),
+        _ => {
+            return Err((
+                axum::http::StatusCode::NOT_FOUND,
+                format!("Unknown admin UI page: {page}"),
+            ))
+        }
     };
 
-    Ok(Json(serde_json::to_value(&AdminUiResponse::page(page_def)).unwrap()))
+    Ok(Json(
+        serde_json::to_value(AdminUiResponse::page(page_def)).unwrap(),
+    ))
 }
 
 fn overview_page() -> AdminUiPage {
@@ -45,8 +56,7 @@ fn overview_page() -> AdminUiPage {
             title: Some("Mail Platform".into()),
             subtitle: None,
             children: vec![RemoteWidget::Text(WidgetText {
-                text: "Principals, domains, groups and quotas for this mail environment."
-                    .into(),
+                text: "Principals, domains, groups and quotas for this mail environment.".into(),
                 text_type: WidgetTextType::Body,
                 align: TextAlign::Left,
                 max_lines: None,

@@ -19,7 +19,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use email8::contracts::Collection;
-use email8::mail_core::{ParsedMessage, thread_key as compute_thread_key};
+use email8::mail_core::{thread_key as compute_thread_key, ParsedMessage};
 use sqlx::PgConnection;
 
 /// Error type for store ops (handler-facing; maps to status codes).
@@ -72,7 +72,13 @@ async fn next_change_id(
     account_id: Uuid,
     collection: Collection,
 ) -> StoreResult<i64> {
-    allocate_ids(conn, account_id, &format!("change:{}", collection as u16), 1).await
+    allocate_ids(
+        conn,
+        account_id,
+        &format!("change:{}", collection as u16),
+        1,
+    )
+    .await
 }
 
 // ── Provisioning (the `sentin8:auth:user:created` consumer) ───────────────
@@ -197,12 +203,13 @@ pub async fn ingest_email(
     let _ = &parsed;
 
     // Quota check (soft): count + bytes.
-    let quota: Option<(i64,)> =
-        sqlx::query_as("SELECT used_bytes FROM email8.quota_counters WHERE env_id = $1 AND account_id = $2")
-            .bind(env_id)
-            .bind(account_id)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let quota: Option<(i64,)> = sqlx::query_as(
+        "SELECT used_bytes FROM email8.quota_counters WHERE env_id = $1 AND account_id = $2",
+    )
+    .bind(env_id)
+    .bind(account_id)
+    .fetch_optional(&mut *conn)
+    .await?;
     let policy: i64 = sqlx::query_scalar(
         "SELECT default_account_quota_bytes FROM email8.quota_policy WHERE env_id = $1",
     )
@@ -283,7 +290,11 @@ pub async fn ingest_email(
     .bind(blob_hash)
     .bind(thread_id)
     .bind(raw.len() as i64)
-    .bind(parsed.sent_at().and_then(|t| chrono::DateTime::from_timestamp(t, 0)))
+    .bind(
+        parsed
+            .sent_at()
+            .and_then(|t| chrono::DateTime::from_timestamp(t, 0)),
+    )
     .bind(parsed.message_id())
     .bind(parsed.subject())
     .bind(parsed.preview(raw, 160))
@@ -379,7 +390,10 @@ pub async fn ingest_email(
     .bind(account_id)
     .bind(Collection::Mailbox as u16 as i16)
     .bind(mailbox_change)
-    .bind(serde_json::json!(mailboxes.iter().map(|m| serde_json::json!({"op": "upd", "id": m})).collect::<Vec<_>>()))
+    .bind(serde_json::json!(mailboxes
+        .iter()
+        .map(|m| serde_json::json!({"op": "upd", "id": m}))
+        .collect::<Vec<_>>()))
     .execute(&mut *conn)
     .await?;
 
@@ -390,7 +404,15 @@ pub async fn ingest_email(
     let (imip_method, imip_uid) = detect_imip(&parsed, raw);
     let mut imip_uid = imip_uid;
     if imip_method.is_some() {
-        imip_uid = file_calendar_event(conn, env_id, account_id, email_id, raw, imip_method.as_deref()).await?;
+        imip_uid = file_calendar_event(
+            conn,
+            env_id,
+            account_id,
+            email_id,
+            raw,
+            imip_method.as_deref(),
+        )
+        .await?;
     }
 
     Ok(IngestOutcome {
@@ -402,8 +424,8 @@ pub async fn ingest_email(
         is_spam: spam,
         size: raw.len() as i64,
         is_imip: imip_method.is_some(),
-        imip_method: imip_method.map(String::from),
-        imip_uid: imip_uid,
+        imip_method,
+        imip_uid,
     })
 }
 
@@ -490,7 +512,14 @@ pub async fn changes_since(
             }
         }
     }
-    Ok(ChangesWindow { old_state, new_state, has_more_changes: has_more, created, updated, destroyed })
+    Ok(ChangesWindow {
+        old_state,
+        new_state,
+        has_more_changes: has_more,
+        created,
+        updated,
+        destroyed,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -591,7 +620,10 @@ async fn ham_override_applies(
 ) -> StoreResult<bool> {
     // (a) Address-book sender.
     if let Some(from) = parsed.from_address() {
-        let addr = from.trim_start_matches('<').trim_end_matches('>').to_ascii_lowercase();
+        let addr = from
+            .trim_start_matches('<')
+            .trim_end_matches('>')
+            .to_ascii_lowercase();
         let listed: Option<i64> = sqlx::query_scalar(
             "SELECT 1 FROM email8.contact_cards \
              WHERE account_id = $1 AND lower(addr) = ANY(emails) LIMIT 1",
@@ -638,7 +670,8 @@ fn build_search_text(parsed: &ParsedMessage, raw: &[u8]) -> String {
     }
     parts.push(parsed.preview(raw, 512));
     parts.join("\n")
-}/// iMIP detection: scan the raw MIME parts for `Content-Type:
+}
+/// iMIP detection: scan the raw MIME parts for `Content-Type:
 /// text/calendar` with a `METHOD=` param; extract the VCALENDAR's
 /// METHOD + UID. Returns (method, uid) — both None when not an iMIP.
 /// iMIP detection (RFC 6047) via the MIME tree walker (story 2.1):
@@ -784,10 +817,6 @@ async fn default_inbox_id(
 }
 
 /// The account's Junk mailbox id (role 'junk' from bootstrap_mailboxes).
-async fn junk_id(
-    conn: &mut PgConnection,
-    env_id: Uuid,
-    account_id: Uuid,
-) -> StoreResult<Uuid> {
+async fn junk_id(conn: &mut PgConnection, env_id: Uuid, account_id: Uuid) -> StoreResult<Uuid> {
     role_mailbox_id(conn, env_id, account_id, "junk").await
 }

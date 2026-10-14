@@ -217,11 +217,16 @@ pub async fn email_query(
     account_id: Uuid,
     args: &Value,
 ) -> Result<Value, StoreOpError> {
-    let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
-    let limit = args.get("limit")
+    let position = args
+        .get("position")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0)
+        .max(0);
+    let limit = args
+        .get("limit")
         .and_then(|v| v.as_i64())
         .unwrap_or(50)
-        .clamp(1, 512) as i64;
+        .clamp(1, 512);
     let filter = args.get("filter").cloned().unwrap_or(json!({}));
 
     // Build the WHERE clause from the filter object.
@@ -272,9 +277,7 @@ pub async fn email_query(
     };
 
     // Count matches with the filter binds applied ($2..$N+1).
-    let count_sql = format!(
-        "SELECT COUNT(*) FROM email8.emails WHERE account_id = $1 {where_sql}"
-    );
+    let count_sql = format!("SELECT COUNT(*) FROM email8.emails WHERE account_id = $1 {where_sql}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(account_id);
     for b in &binds {
         count_q = count_q.bind(b.as_str().unwrap_or(""));
@@ -354,7 +357,10 @@ pub async fn changes(
         .get("sinceState")
         .and_then(|v| v.as_str())
         .and_then(|s| s.parse::<i64>().ok());
-    let max = args.get("maxChanges").and_then(|v| v.as_u64()).unwrap_or(64) as usize;
+    let max = args
+        .get("maxChanges")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(64) as usize;
     let window = store_ops::changes_since(conn, account_id, collection, since, max).await?;
     Ok(json!({
         "oldState": window.old_state.to_string(),
@@ -381,7 +387,10 @@ pub async fn email_set(
     account_id: Uuid,
     args: &Value,
 ) -> Result<Value, StoreOpError> {
-    let old_state = args.get("ifInState").and_then(|v| v.as_str()).unwrap_or("0");
+    let old_state = args
+        .get("ifInState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
     let _ = old_state;
     // Email creation flows through the ingest API (APPEND / SMTP);
     // Email/set's create map is always empty per RFC 8620 §5.3.
@@ -396,7 +405,9 @@ pub async fn email_set(
     if let Some(updates) = args.get("update").and_then(|v| v.as_object()) {
         for (id_str, patch) in updates {
             let Ok(id) = id_str.parse::<Uuid>() else {
-                not_updated.as_object_mut().unwrap()
+                not_updated
+                    .as_object_mut()
+                    .unwrap()
                     .insert(id_str.clone(), json!("Invalid email id"));
                 continue;
             };
@@ -404,7 +415,10 @@ pub async fn email_set(
             match res {
                 Ok(()) => updated.push(id_str.clone()),
                 Err(e) => {
-                    not_updated.as_object_mut().unwrap().insert(id_str.clone(), json!(e.to_string()));
+                    not_updated
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(id_str.clone(), json!(e.to_string()));
                 }
             }
         }
@@ -415,7 +429,9 @@ pub async fn email_set(
     if let Some(destroys) = args.get("destroy").and_then(|v| v.as_array()) {
         for id_val in destroys {
             let Some(id) = id_val.as_str().and_then(|s| Uuid::parse_str(s).ok()) else {
-                not_destroyed.as_object_mut().unwrap()
+                not_destroyed
+                    .as_object_mut()
+                    .unwrap()
                     .insert(id_val.to_string(), json!("Invalid email id"));
                 continue;
             };
@@ -438,7 +454,10 @@ pub async fn email_set(
                     destroyed.push(id.to_string());
                 }
                 Err(e) => {
-                    not_destroyed.as_object_mut().unwrap().insert(id.to_string(), json!(e.to_string()));
+                    not_destroyed
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(id.to_string(), json!(e.to_string()));
                 }
             }
         }
@@ -484,13 +503,11 @@ pub(crate) async fn email_apply_patch(
     if let Some(mailbox_ids) = patch.get("mailboxIds").and_then(|v| v.as_object()) {
         // Re-place the email into the set of mailboxes (RFC 8620 —
         // mailboxIds is the authoritative membership set).
-        sqlx::query(
-            "DELETE FROM email8.email_mailboxes WHERE account_id = $1 AND email_id = $2",
-        )
-        .bind(account_id)
-        .bind(email_id)
-        .execute(&mut *conn)
-        .await?;
+        sqlx::query("DELETE FROM email8.email_mailboxes WHERE account_id = $1 AND email_id = $2")
+            .bind(account_id)
+            .bind(email_id)
+            .execute(&mut *conn)
+            .await?;
         for (mailbox_str, on) in mailbox_ids {
             if !on.as_bool().unwrap_or(false) {
                 continue;
@@ -540,7 +557,9 @@ pub async fn mailbox_set(
         for (cid, props) in creates {
             let name = props.get("name").and_then(|v| v.as_str()).unwrap_or("");
             if name.is_empty() {
-                not_created.as_object_mut().unwrap()
+                not_created
+                    .as_object_mut()
+                    .unwrap()
                     .insert(cid.clone(), json!("Mailbox name required"));
                 continue;
             }
@@ -566,11 +585,16 @@ pub async fn mailbox_set(
             .await;
             match res {
                 Ok(_) => {
-                    created.as_object_mut().unwrap()
+                    created
+                        .as_object_mut()
+                        .unwrap()
                         .insert(cid.clone(), json!({ "id": id.to_string(), "name": name }));
                 }
                 Err(e) => {
-                    not_created.as_object_mut().unwrap().insert(cid.clone(), json!(e.to_string()));
+                    not_created
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(cid.clone(), json!(e.to_string()));
                 }
             }
         }
@@ -579,7 +603,9 @@ pub async fn mailbox_set(
     if let Some(updates) = args.get("update").and_then(|v| v.as_object()) {
         for (id_str, patch) in updates {
             let Ok(id) = id_str.parse::<Uuid>() else {
-                not_updated.as_object_mut().unwrap()
+                not_updated
+                    .as_object_mut()
+                    .unwrap()
                     .insert(id_str.clone(), json!("Invalid mailbox id"));
                 continue;
             };
@@ -601,7 +627,10 @@ pub async fn mailbox_set(
             match res {
                 Ok(_) => updated.push(id_str.clone()),
                 Err(e) => {
-                    not_updated.as_object_mut().unwrap().insert(id_str.clone(), json!(e.to_string()));
+                    not_updated
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(id_str.clone(), json!(e.to_string()));
                 }
             }
         }
@@ -610,7 +639,9 @@ pub async fn mailbox_set(
     if let Some(destroys) = args.get("destroy").and_then(|v| v.as_array()) {
         for id_val in destroys {
             let Some(id) = id_val.as_str().and_then(|s| Uuid::parse_str(s).ok()) else {
-                not_destroyed.as_object_mut().unwrap()
+                not_destroyed
+                    .as_object_mut()
+                    .unwrap()
                     .insert(id_val.to_string(), json!("Invalid mailbox id"));
                 continue;
             };
@@ -626,21 +657,24 @@ pub async fn mailbox_set(
             .await
             .unwrap_or(0);
             if count > 0 {
-                not_destroyed.as_object_mut().unwrap()
+                not_destroyed
+                    .as_object_mut()
+                    .unwrap()
                     .insert(id.to_string(), json!("mailboxHasEmail"));
                 continue;
             }
-            let res = sqlx::query(
-                "DELETE FROM email8.mailboxes WHERE account_id = $1 AND id = $2",
-            )
-            .bind(account_id)
-            .bind(id)
-            .execute(&mut *conn)
-            .await;
+            let res = sqlx::query("DELETE FROM email8.mailboxes WHERE account_id = $1 AND id = $2")
+                .bind(account_id)
+                .bind(id)
+                .execute(&mut *conn)
+                .await;
             match res {
                 Ok(_) => destroyed.push(id.to_string()),
                 Err(e) => {
-                    not_destroyed.as_object_mut().unwrap().insert(id.to_string(), json!(e.to_string()));
+                    not_destroyed
+                        .as_object_mut()
+                        .unwrap()
+                        .insert(id.to_string(), json!(e.to_string()));
                 }
             }
         }
@@ -664,10 +698,11 @@ pub async fn identity_get(
     account_id: Uuid,
     args: &Value,
 ) -> Result<Value, StoreOpError> {
-    let ids: Option<Vec<String>> = args
-        .get("ids")
-        .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|i| i.as_str().map(String::from)).collect());
+    let ids: Option<Vec<String>> = args.get("ids").and_then(|v| v.as_array()).map(|a| {
+        a.iter()
+            .filter_map(|i| i.as_str().map(String::from))
+            .collect()
+    });
     let rows = if let Some(want) = &ids {
         sqlx::query(
             "SELECT id, address, name, reply_to, bcc_to, text_signature, html_signature \
@@ -774,9 +809,16 @@ pub async fn calendar_event_get(
         .get("filter")
         .and_then(|f| f.get("calendarIds"))
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|i| i.as_str().map(String::from)).collect());
+        .map(|a| {
+            a.iter()
+                .filter_map(|i| i.as_str().map(String::from))
+                .collect()
+        });
     let rows = if let Some(cals) = calendar_filter {
-        let cal_ids: Vec<Uuid> = cals.iter().filter_map(|s| Uuid::parse_str(s).ok()).collect();
+        let cal_ids: Vec<Uuid> = cals
+            .iter()
+            .filter_map(|s| Uuid::parse_str(s).ok())
+            .collect();
         sqlx::query(
             "SELECT id, calendar_id, uid, display_name, data, occurrences, updated_at \
              FROM email8.calendar_events \
@@ -850,9 +892,16 @@ pub async fn contact_card_get(
         .get("filter")
         .and_then(|f| f.get("addressbookIds"))
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|i| i.as_str().map(String::from)).collect());
+        .map(|a| {
+            a.iter()
+                .filter_map(|i| i.as_str().map(String::from))
+                .collect()
+        });
     let rows = if let Some(books) = book_filter {
-        let ids: Vec<Uuid> = books.iter().filter_map(|s| Uuid::parse_str(s).ok()).collect();
+        let ids: Vec<Uuid> = books
+            .iter()
+            .filter_map(|s| Uuid::parse_str(s).ok())
+            .collect();
         sqlx::query(
             "SELECT id, addressbook_id, display_name, card, emails, updated_at \
              FROM email8.contact_cards \
@@ -916,7 +965,11 @@ pub async fn email_submission_set(
                 .get("envelope")
                 .and_then(|e| e.get("rcptTo"))
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|r| r.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|r| r.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
             if email_id.is_empty() || return_path.is_empty() || rcpts.is_empty() {
                 not_created.insert(
@@ -931,7 +984,7 @@ pub async fn email_submission_set(
                 .bind(m.env_id())
                 .execute(&mut *conn)
                 .await;
-            let email_pk: Uuid = match Uuid::parse_str(&email_id) {
+            let email_pk: Uuid = match Uuid::parse_str(email_id) {
                 Ok(v) => v,
                 Err(_) => {
                     not_created.insert(cid.clone(), json!("invalid emailId"));
@@ -954,7 +1007,10 @@ pub async fn email_submission_set(
             // user scope + env binding from its own check).
             let token = std::env::var("EMAIL8_STORE_TOKEN").unwrap_or_default();
             let client = reqwest::Client::new();
-            let url = format!("{}/v1/internal/submit", state.config.mta_url.trim_end_matches('/'));
+            let url = format!(
+                "{}/v1/internal/submit",
+                state.config.mta_url.trim_end_matches('/')
+            );
             let resp = client
                 .post(&url)
                 .bearer_auth(token)
@@ -988,10 +1044,16 @@ pub async fn email_submission_set(
                 // (onSuccessDestroyEmail).
                 if let Ok(draft_pk) = email_id.parse::<Uuid>() {
                     if let Some(on_patch) = sub.get("onSuccessUpdateEmail") {
-                        if let Err(e) = chain_update_email(state, m, account_id, draft_pk, on_patch).await {
+                        if let Err(e) =
+                            chain_update_email(state, m, account_id, draft_pk, on_patch).await
+                        {
                             tracing::warn!(error = %e, "email8:store: onSuccessUpdateEmail failed (submission kept)");
                         }
-                    } else if sub.get("onSuccessDestroyEmail").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    } else if sub
+                        .get("onSuccessDestroyEmail")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
                         if let Err(e) = chain_destroy_email(state, m, account_id, draft_pk).await {
                             tracing::warn!(error = %e, "email8:store: onSuccessDestroyEmail failed (submission kept)");
                         }
@@ -1055,22 +1117,18 @@ async fn chain_destroy_email(
         .bind(m.env_id())
         .execute(&mut *tx)
         .await;
-    sqlx::query(
-        "DELETE FROM email8.email_mailboxes WHERE account_id = $1 AND email_id = $2",
-    )
-    .bind(account_id)
-    .bind(email_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| e.to_string())?;
-    sqlx::query(
-        "UPDATE email8.emails SET deleted_at = now() WHERE account_id = $1 AND id = $2",
-    )
-    .bind(account_id)
-    .bind(email_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM email8.email_mailboxes WHERE account_id = $1 AND email_id = $2")
+        .bind(account_id)
+        .bind(email_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE email8.emails SET deleted_at = now() WHERE account_id = $1 AND id = $2")
+        .bind(account_id)
+        .bind(email_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
     sqlx::query(
         "INSERT INTO email8.changelog \
             (env_id, account_id, change_type, collection, record_id) \
@@ -1102,7 +1160,10 @@ pub async fn push_subscription_set(
     if let Some(create_map) = args.get("create").and_then(|v| v.as_object()) {
         for (cid, obj) in create_map {
             let Some(endpoint) = obj.get("endpoint").and_then(|v| v.as_str()) else {
-                created.insert(cid.clone(), serde_json::json!({ "error": "invalidProperties" }));
+                created.insert(
+                    cid.clone(),
+                    serde_json::json!({ "error": "invalidProperties" }),
+                );
                 continue;
             };
             let types = obj

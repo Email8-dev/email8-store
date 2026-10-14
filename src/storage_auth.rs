@@ -26,12 +26,9 @@ pub async fn storage_client(
     let issuer = std::env::var("SENTIN8_AUTH_ISSUER")
         .unwrap_or_else(|_| sentin8::config::Sentin8Config::from_env().sentin8_auth_issuer());
     let ca_cert_path = sentin8::auth::m2m::platform_ca_path();
-    let cert = sentin8::auth::m2m::ensure_workload_certificate(
-        &issuer,
-        "email8:store",
-        &ca_cert_path,
-    )
-    .await?;
+    let cert =
+        sentin8::auth::m2m::ensure_workload_certificate(&issuer, "email8:store", &ca_cert_path)
+            .await?;
     sentin8_storage_sdk::client::StorageClient::with_workload_identity(
         storage_url,
         &cert.ca_cert_path,

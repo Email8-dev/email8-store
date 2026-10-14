@@ -24,16 +24,16 @@ mod config;
 mod data_api;
 #[allow(dead_code)]
 mod event_consumer;
-mod openapi;
-mod registration;
-#[allow(dead_code)]
-mod server;
 #[allow(dead_code)]
 mod jmap;
 #[allow(dead_code)]
 mod jmap_objects;
+mod openapi;
 #[allow(dead_code)]
 mod push_stream;
+mod registration;
+#[allow(dead_code)]
+mod server;
 #[allow(dead_code)]
 mod storage_auth;
 mod store_ops;

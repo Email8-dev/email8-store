@@ -31,9 +31,14 @@ pub fn spawn(
 async fn run(pool: PgPool, bus_client: sentin8::bus::client::BusClient) {
     tracing::info!("email8:store: provisioning consumer started (group={CONSUMER_GROUP}, family={EVENT_STREAM_FAMILY})");
     loop {
-        match bus_client.sse_consume(EVENT_STREAM_FAMILY, CONSUMER_GROUP).await {
+        match bus_client
+            .sse_consume(EVENT_STREAM_FAMILY, CONSUMER_GROUP)
+            .await
+        {
             Ok(resp) => {
-                tracing::info!("email8:store: bus SSE connected to stream family '{EVENT_STREAM_FAMILY}'");
+                tracing::info!(
+                    "email8:store: bus SSE connected to stream family '{EVENT_STREAM_FAMILY}'"
+                );
                 sse_loop(&pool, &bus_client, resp).await;
                 tracing::info!("email8:store: bus SSE disconnected — reconnecting");
             }
@@ -71,12 +76,13 @@ async fn sse_loop(
             // (bus/src/sse.rs): id/message_id, env_id, event_type, data
             // fields. Parse the JSON directly — axum's SSE frames carry
             // only `id:`/`data:` (no `event:` line).
-            let msg: serde_json::Value = match serde_json::from_str(&event_str
-                .lines()
-                .find_map(|l| l.strip_prefix("data:"))
-                .unwrap_or_default()
-                .trim())
-            {
+            let msg: serde_json::Value = match serde_json::from_str(
+                event_str
+                    .lines()
+                    .find_map(|l| l.strip_prefix("data:"))
+                    .unwrap_or_default()
+                    .trim(),
+            ) {
                 Ok(v) => v,
                 Err(_) => continue,
             };

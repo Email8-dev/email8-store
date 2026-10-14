@@ -28,13 +28,12 @@ pub async fn current_state(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
 ) -> Option<serde_json::Value> {
-    let (email_state, mailbox_state) =
-        sqlx::query_as::<_, (i64, i64)>(SQL_HEAD_STATE)
-            .bind(account_id)
-            .fetch_optional(&mut *conn)
-            .await
-            .ok()
-            .flatten()?;
+    let (email_state, mailbox_state) = sqlx::query_as::<_, (i64, i64)>(SQL_HEAD_STATE)
+        .bind(account_id)
+        .fetch_optional(&mut *conn)
+        .await
+        .ok()
+        .flatten()?;
     Some(serde_json::json!({
         "@type": "StateChange",
         "changed": { account_id.to_string(): {
