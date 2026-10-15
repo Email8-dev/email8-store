@@ -1223,33 +1223,24 @@ async fn fetch_blob(state: &AppState, blob_hash: &str) -> Result<Vec<u8>, (Statu
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))
 }
 
-/// Append an event to the shared `sentin8.bus_inbox` for Bus relay.
+/// Append an event to the local `email8.outbox` (OUTBOX-EMAIL8,
+/// architecture-principles §6.7 — the DBX producer path). The row is
+/// relayed to Bus `POST /v1/produce` post-commit by the shell's 8b task
+/// (idempotency_key = row id; consumers dedupe). The shared-schema note:
+/// email8 keeps every table in `email8` — the helper's unqualified
+/// `outbox` resolves through the service role's search_path.
 async fn emit_event(
     pool: &sqlx::PgPool,
     env_id: Uuid,
     event_type: &str,
     payload: serde_json::Value,
 ) {
-    let mut conn = match pool.acquire().await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::warn!(error = %e, %event_type, "email8:store: outbox connection failed");
-            return;
-        }
-    };
-    let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
-        .bind(env_id)
-        .execute(&mut *conn)
-        .await;
-    let _ = sqlx::query(
-        "INSERT INTO sentin8.bus_inbox (env_id, event_type, stream_family, payload) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(env_id)
-    .bind(event_type)
-    .bind("email8")
-    .bind(&payload)
-    .execute(&mut *conn)
-    .await;
+    if let Err(e) =
+        sentin8::bus::outbox::insert_outbox_row_pool(pool, env_id, "email8", event_type, &payload)
+            .await
+    {
+        tracing::warn!(error = %e, %event_type, "email8:store: outbox insert failed");
+    }
 }
 // ── ACL grants + effective rights (story 2.7) ─────────────────────────────
 
