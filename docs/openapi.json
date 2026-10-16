@@ -1,0 +1,652 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "email8-store",
+    "description": "Sentin8 Email8:Store — mail/collaboration data core + JMAP API.",
+    "license": {
+      "name": "MIT OR Apache-2.0",
+      "identifier": "MIT OR Apache-2.0"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/admin/{page}": {
+      "post": {
+        "tags": [
+          "email8-store"
+        ],
+        "summary": "`POST /v1/admin/{page}` — data for the admin viewer pages.",
+        "operationId": "admin_data",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "description": "Admin page id: users|overview|domains|groups|quotas",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "target_env_id",
+            "in": "query",
+            "description": "REQUIRED target env",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "query",
+            "description": "Optional account scope",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page data",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Missing target_env_id"
+          },
+          "403": {
+            "description": "Missing email8 admin scope"
+          },
+          "404": {
+            "description": "Unknown page"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BlobQuotaCheck": {
+        "type": "object",
+        "required": [
+          "env_id",
+          "account_id",
+          "size"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BlobQuotaVerdict": {
+        "type": "object",
+        "required": [
+          "allowed",
+          "used_bytes"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "quota_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "used_bytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ChangesSinceRequest": {
+        "type": "object",
+        "description": "A change-log window query (JMAP `/changes`, IMAP QRESYNC since).",
+        "required": [
+          "env_id",
+          "account_id",
+          "collection"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "collection": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "max_changes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "since_change_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "ChangesSinceResponse": {
+        "type": "object",
+        "required": [
+          "old_state",
+          "new_state",
+          "has_more_changes",
+          "created",
+          "updated",
+          "destroyed"
+        ],
+        "properties": {
+          "created": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "destroyed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "has_more_changes": {
+            "type": "boolean"
+          },
+          "new_state": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "old_state": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreateMailboxRequest": {
+        "type": "object",
+        "required": [
+          "env_id",
+          "account_id",
+          "name"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IngestMessage": {
+        "type": "object",
+        "description": "Raw message ingestion — the single entry point Mta local delivery,\nIMAP APPEND and JMAP Email/import all funnel through.",
+        "required": [
+          "env_id",
+          "account_id",
+          "blob_hash",
+          "size",
+          "source",
+          "source_flags"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "blob_hash": {
+            "type": "string",
+            "description": "Storage content-address key for the raw message bytes."
+          },
+          "delivered_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ham_override": {
+            "type": "boolean",
+            "description": "Skip spam re-file when the sender is a known-ham address."
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Idempotency key — (blob_hash, mailbox set, envelope) dedup."
+          },
+          "mailboxes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Mailbox ids to file into; defaults to INBOX."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string",
+            "description": "Source metadata for the change log + spam overrides."
+          },
+          "source_flags": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "spam_percentage": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Pre-computed spam percentage (0-100) — ≥50 re-files to JUNK."
+          }
+        }
+      },
+      "IngestedEmail": {
+        "type": "object",
+        "required": [
+          "email_id",
+          "account_id",
+          "thread_id",
+          "mailboxes",
+          "change_id",
+          "size"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "change_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mailboxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailboxUid"
+            }
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "thread_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "MailboxDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "name",
+          "sort_order",
+          "uid_validity",
+          "uid_next",
+          "is_subscribed"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_subscribed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort_order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "uid_next": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uid_validity": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MailboxUid": {
+        "type": "object",
+        "required": [
+          "mailbox_id",
+          "imap_uid"
+        ],
+        "properties": {
+          "imap_uid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mailbox_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ResolveAddressRequest": {
+        "type": "object",
+        "description": "Resolve an address to a principal (legacy `rcpt_resolve` core).",
+        "required": [
+          "env_id",
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sub_addressing": {
+            "type": "boolean",
+            "description": "Apply sub-addressing (`user+tag@domain`) before lookup."
+          }
+        }
+      },
+      "ResolvedAddress": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A local principal account.",
+            "required": [
+              "account_id",
+              "name",
+              "address",
+              "kind"
+            ],
+            "properties": {
+              "account_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "address": {
+                "type": "string",
+                "description": "Effective delivery address after sub-addressing/alias rewrite."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "account"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A mailing list/group — expand to members.",
+            "required": [
+              "group_id",
+              "members",
+              "kind"
+            ],
+            "properties": {
+              "group_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "group"
+                ]
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The env's catch-all target.",
+            "required": [
+              "account_id",
+              "address",
+              "kind"
+            ],
+            "properties": {
+              "account_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "address": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "catch_all"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Not local — relay decision belongs to the caller (env relay policy).",
+            "required": [
+              "address",
+              "kind"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "external"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Unknown local address.",
+            "required": [
+              "address",
+              "kind"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "invalid"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Resolution outcome (legacy `RcptResolution`)."
+      },
+      "SubmitRequest": {
+        "type": "object",
+        "required": [
+          "env_id",
+          "account_id",
+          "user_sub",
+          "return_path",
+          "recipients",
+          "blob_hash",
+          "size",
+          "source"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "blob_hash": {
+            "type": "string"
+          },
+          "env_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hold_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Delayed send (`sendAt`)."
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "return_path": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "user_sub": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sentin8:Auth user `sub` — re-verified by Mta from claims."
+          }
+        }
+      },
+      "SubmitResponse": {
+        "type": "object",
+        "required": [
+          "queue_id"
+        ],
+        "properties": {
+          "next_event_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Earliest due event (retry/notify/expiry) — informational."
+          },
+          "queue_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    }
+  },
+  "security": [],
+  "tags": [
+    {
+      "name": "email8-store",
+      "description": "Sentin8 Email8:Store — mail data core + JMAP API"
+    }
+  ]
+}
