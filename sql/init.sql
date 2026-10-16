@@ -48,6 +48,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS email8_pa_uniq_addr
     ON email8.principal_addresses (env_id, lower(address));
 
 -- ── Domains (mail domains served by this tenant) ────────────────────────
+-- NO RLS BY DESIGN (PROVRLS-1 design §1.1 defect 4 — the bank8-fdx
+-- `provider_profiles` precedent): the MTA's MX/AUTH path resolves a
+-- recipient domain to its env via `SELECT env_id … WHERE lower(name) =
+-- $1` BEFORE any tenant context exists — the env is the thing being
+-- discovered, so an env-tier policy hides every row from the only
+-- reader that needs it. Writes stay scoped by the service roles'
+-- grants; admin mutations are Shield-gated at the API surface.
 CREATE TABLE IF NOT EXISTS email8.domains (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     env_id        UUID NOT NULL,
@@ -188,9 +195,16 @@ EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'admin helper skip: %', SQLERRM;
 END $$;
 
--- Principals: the account root row — scoped by env + own id (the row
--- IS the account, so `id = sentin8_current_account_id()` is the holder
--- test; env admins see all principals in their env).
+-- Principals: the account root row. Env-tier for ALL operations
+-- (PROVRLS-1 — the bank8 `customers` precedent for root holder
+-- tables): RLS admits any in-context writer in the env; the service
+-- layer decides who may create rows (admin surfaces are Shield-gated
+-- on `email8:admin:users`, provisioning rides the bus consumer's m2m
+-- context). SELECT additionally admits the holder-match on the auth
+-- user link (`sentin8_auth_user_id`), env admins, and the M2M-only
+-- `holder:view-all` branch (bank8 `accounts_select` shape) — user
+-- paths see their own row without the email8-local `app.account_id`
+-- binding, so `bind_account`'s discovery SELECT is not circular.
 ALTER TABLE email8.principals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email8.principals FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS email8_principals_tenant ON email8.principals;
@@ -198,12 +212,14 @@ CREATE POLICY email8_principals_tenant ON email8.principals FOR ALL USING (
     sentin8_context_initialized()
     AND (sentin8_bypass_rls()
          OR (env_id = sentin8_current_env_id()
-             AND (id = sentin8_current_account_id() OR sentin8_is_env_admin())))
+             AND (sentin8_current_sentin8_auth_user_id() IS NOT NULL
+                  OR sentin8_is_env_admin()
+                  OR (sentin8_has_scope('holder:view-all')
+                      AND sentin8_current_token_tp() = 'm2m'))))
 ) WITH CHECK (
     sentin8_context_initialized()
     AND (sentin8_bypass_rls()
-         OR (env_id = sentin8_current_env_id()
-             AND (id = sentin8_current_account_id() OR sentin8_is_env_admin())))
+         OR env_id = sentin8_current_env_id())
 );
 
 -- ── Change log (JMAP state tokens, IMAP HIGHESTMODSEQ/VANISHED, DAV sync) ─
@@ -448,7 +464,7 @@ DECLARE
     ];
     -- Env-scoped tables (no per-account holder): admin/config surfaces.
     env_tables CONSTANT text[] := ARRAY[
-        'domains', 'groups', 'group_members',
+        'groups', 'group_members',
         'quota_policy', 'spam_policy', 'spam_samples',
         'blob_links', 'acl_grants', 'quota_counters',
         'dnsbl_zones', 'sequences'

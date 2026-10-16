@@ -2,7 +2,11 @@
   "vertical": "email8",
   "services": [
     {
-      "service_type": "email8:store"
+      "service_type": "email8:store",
+      "telemetry_property": {
+        "slug": "store",
+        "name": "Email8:Store Telemetry"
+      }
     }
   ]
 }
