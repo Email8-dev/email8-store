@@ -25,6 +25,11 @@ graph TD
   leaf schema `store.outbox` (OUTBOX-EMAIL8 — the DBX producer path;
   the shell's 8b relay drains it to Bus `POST /v1/produce`,
   idempotency_key = row id).
+- Audit journal (AUDJOUR-1, architecture-principles §6.8): the
+  `store.audit_journal` leaf-schema table (migration v4 — the 15-column
+  `sentin8_audit::audit_journal_sql` contract) is drained to Sys
+  `POST /v1/audit` by the shell's boot-8c pusher, presenting the
+  `store-audit` workload certificate (`sentin8:sys:audit:write`).
 - Message blobs go to Sentin8:Storage; Store keeps the metadata +
   indexes.
 - M2M: certificate identity (CERTFREE-4V) — internal callers present
