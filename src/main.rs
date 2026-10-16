@@ -40,11 +40,6 @@ mod store_ops;
 
 use utoipa::OpenApi;
 
-/// mimalloc global allocator (design §6 D13) — all store-side workers
-/// (JMAP push fan-out, event consumer) share this binary's allocator.
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     sentin8::shell::serve(

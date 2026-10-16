@@ -169,14 +169,24 @@ async fn handle_event(
         return Ok(()); // no address — nothing to provision for mail
     }
 
-    let mut conn = pool.acquire().await?;
-    let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
-        .bind(env_id)
-        .execute(&mut *conn)
-        .await;
-    crate::store_ops::provision_principal(&mut conn, env_id, auth_sub, &email, display.as_deref())
+    // PROVRLS-1: the tenant context is transaction-local
+    // (`set_config(..., true)`) — on an autocommit connection it
+    // evaporates before the next statement and RLS rejects the insert
+    // (design §1.1 defect 2). Stamp + provision share ONE explicit
+    // transaction on ONE connection (§4.3d). `p_subject_id` is TEXT —
+    // bind the sub as its string form.
+    let mut tx = pool.begin().await?;
+    let _ = sqlx::query(
+        "SELECT sentin8_set_tenant_context($1, $2::text, 'm2m', NULL, false, false, false, $2)",
+    )
+    .bind(env_id)
+    .bind(auth_sub)
+    .execute(&mut *tx)
+    .await;
+    crate::store_ops::provision_principal(&mut tx, env_id, auth_sub, &email, display.as_deref())
         .await
         .map_err(|e| anyhow::anyhow!("provision failed: {e}"))?;
+    tx.commit().await?;
     tracing::info!(%env_id, user = %email, "email8:store: principal provisioned");
     Ok(())
 }

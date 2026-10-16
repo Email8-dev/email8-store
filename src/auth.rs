@@ -126,6 +126,11 @@ async fn require_workload_auth(
 
 /// Complete the account binding on a connection that already has the
 /// standard tenant context set. Returns the (possibly zero) principal id.
+///
+/// PROVRLS-1: the caller stamps the auth-user id in the same
+/// transaction, so the `principals` holder-match SELECT branch
+/// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`)
+/// admits the row — the binding is not circular.
 pub async fn bind_account(
     conn: &mut PgConnection,
     mail: &MailAuth,
@@ -147,18 +152,41 @@ pub async fn bind_account(
     Ok(row.map(|r| r.0).unwrap_or(Uuid::nil()))
 }
 
-/// Set the extended tenant context including the mail account binding.
+/// Set the extended mail tenant context on a connection the caller has
+/// ALREADY put inside an explicit transaction (PROVRLS-1: the context is
+/// `set_config(..., true)` — transaction-local; on an autocommit
+/// connection it evaporates before the next statement and RLS rejects
+/// the query — design §1.1 defect 2, §4.3d same-connection rule).
 ///
-/// Runs `SELECT sentin8_set_tenant_context($1)` (transaction-local) and
-/// then binds `app.account_id` for the holder-scoped RLS policies. MUST
-/// be awaited on the same connection as the data query (§4.3d).
-pub async fn set_mail_tenant_context(conn: &mut PgConnection, env_id: Uuid, account_id: Uuid) {
-    let _ = sqlx::query("SELECT sentin8_set_tenant_context($1)")
-        .bind(env_id)
-        .execute(&mut *conn)
-        .await;
+/// Stamps the caller's full claim set — including the auth-user id,
+/// which admits the `principals` holder-match policy branch
+/// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`) —
+/// and binds `app.account_id` for the holder-scoped child-table
+/// policies. MUST be awaited on the same connection as the data query.
+pub async fn set_mail_tenant_context(
+    tx: &mut PgConnection,
+    m: &MailAuth,
+    env_id: Uuid,
+    account_id: Uuid,
+) {
+    let sub = m.auth.claims.sub.clone();
+    let token_tp = m.auth.claims.token_tp.clone();
+    let scope = m.auth.claims.scope.clone();
+    let is_platform_admin = m.auth.is_platform_admin();
+    let is_env_admin = m.auth.claims.is_env_admin();
+    let _ = sqlx::query(
+        "SELECT sentin8_set_tenant_context($1, $2, $3, $4, $5, false, $6, $2)",
+    )
+    .bind(env_id)
+    .bind(&sub)
+    .bind(&token_tp)
+    .bind(&scope)
+    .bind(is_platform_admin)
+    .bind(is_env_admin)
+    .execute(&mut *tx)
+    .await;
     let _ = sqlx::query("SELECT set_config('app.account_id', $1::text, true)")
         .bind(account_id.to_string())
-        .execute(&mut *conn)
+        .execute(&mut *tx)
         .await;
 }

@@ -38,9 +38,13 @@ pub async fn session(
     let account_id = if m.account_id != Uuid::nil() {
         m.account_id
     } else {
-        let mut conn = state.pool.acquire().await.map_err(err_db)?;
-        auth::set_mail_tenant_context(&mut conn, m.env_id(), Uuid::nil()).await;
-        auth::bind_account(&mut conn, &m).await?
+        // PROVRLS-1: context + binding SELECT share ONE transaction —
+        // the transaction-local context evaporates on autocommit.
+        let mut tx = state.pool.begin().await.map_err(err_db)?;
+        auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), Uuid::nil()).await;
+        let bound = auth::bind_account(&mut tx, &m).await?;
+        tx.commit().await.map_err(err_db)?;
+        bound
     };
     let account_str = account_id.to_string();
     let caps = json!({
@@ -90,9 +94,11 @@ pub async fn api(
     let req = jmap::parse(&body).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Resolve the account binding once for the whole batch.
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, m.env_id(), m.account_id).await;
-    let account_id = auth::bind_account(&mut conn, &m).await?;
+    // PROVRLS-1: explicit transaction — the context is transaction-local.
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), m.account_id).await;
+    let account_id = auth::bind_account(&mut tx, &m).await?;
+    tx.commit().await.map_err(err_db)?;
 
     let mut resp = jmap::JmapResponse::new();
     let responses: Vec<(String, serde_json::Value, String)> = Vec::new();
@@ -139,75 +145,128 @@ async fn dispatch(
     verb: &str,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let mut conn = state
-        .pool
-        .acquire()
-        .await
-        .map_err(|e| e.to_string())
-        .map_err(err_string)?;
-    auth::set_mail_tenant_context(&mut conn, m.env_id(), account_id).await;
+    // PROVRLS-1: the context stamp is transaction-local — begin the
+    // transaction FIRST, stamp inside it, and let the object handler run
+    // on the same connection for the whole batch method.
+    let mut tx = state.pool.begin().await.map_err(|e| e.to_string()).map_err(err_string)?;
+    auth::set_mail_tenant_context(&mut tx, m, m.env_id(), account_id).await;
 
     match (object, verb) {
-        ("Core", "echo") => Ok(jmap::echo(args)),
-        ("Mailbox", "get") => crate::jmap_objects::mailbox_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Email", "get") => crate::jmap_objects::email_get(&mut conn, account_id, &args, state)
-            .await
-            .map_err(err_string),
-        ("Email", "changes") | ("Mailbox", "changes") | ("Thread", "changes") => {
-            crate::jmap_objects::changes(&mut conn, account_id, object, &args)
-                .await
-                .map_err(err_string)
+        ("Core", "echo") => {
+            let _ = tx.commit().await;
+            Ok(jmap::echo(args))
         }
-        ("Thread", "get") => crate::jmap_objects::thread_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Email", "query") => crate::jmap_objects::email_query(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Email", "set") => crate::jmap_objects::email_set(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Mailbox", "set") => crate::jmap_objects::mailbox_set(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Identity", "get") => crate::jmap_objects::identity_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("Calendar", "get") => crate::jmap_objects::calendar_get(&mut conn, account_id, &args)
-            .await
-            .map_err(err_string),
-        ("CalendarEvent", "get") => {
-            crate::jmap_objects::calendar_event_get(&mut conn, account_id, &args)
+        ("Mailbox", "get") => {
+            let v = crate::jmap_objects::mailbox_get(&mut tx, account_id, &args)
                 .await
-                .map_err(err_string)
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Email", "get") => {
+            let v = crate::jmap_objects::email_get(&mut tx, account_id, &args, state)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Email", "changes") | ("Mailbox", "changes") | ("Thread", "changes") => {
+            let v = crate::jmap_objects::changes(&mut tx, account_id, object, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Thread", "get") => {
+            let v = crate::jmap_objects::thread_get(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Email", "query") => {
+            let v = crate::jmap_objects::email_query(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Email", "set") => {
+            let v = crate::jmap_objects::email_set(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Mailbox", "set") => {
+            let v = crate::jmap_objects::mailbox_set(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Identity", "get") => {
+            let v = crate::jmap_objects::identity_get(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("Calendar", "get") => {
+            let v = crate::jmap_objects::calendar_get(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
+        }
+        ("CalendarEvent", "get") => {
+            let v = crate::jmap_objects::calendar_event_get(&mut tx, account_id, &args)
+                .await
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
         }
         ("AddressBook", "get") => {
-            crate::jmap_objects::addressbook_get(&mut conn, account_id, &args)
+            let v = crate::jmap_objects::addressbook_get(&mut tx, account_id, &args)
                 .await
-                .map_err(err_string)
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
         }
         ("ContactCard", "get") => {
-            crate::jmap_objects::contact_card_get(&mut conn, account_id, &args)
+            let v = crate::jmap_objects::contact_card_get(&mut tx, account_id, &args)
                 .await
-                .map_err(err_string)
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
         }
         ("PushSubscription", "get") => {
-            crate::jmap_objects::push_subscription_get(&mut conn, account_id, &args)
+            let v = crate::jmap_objects::push_subscription_get(&mut tx, account_id, &args)
                 .await
-                .map_err(err_string)
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
         }
         ("PushSubscription", "set") => {
-            crate::jmap_objects::push_subscription_set(&mut conn, m.env_id(), account_id, &args)
+            let v = crate::jmap_objects::push_subscription_set(&mut tx, m.env_id(), account_id, &args)
                 .await
-                .map_err(err_string)
+                .map_err(err_string);
+            let _ = tx.commit().await;
+            v
         }
         ("EmailSubmission", "set") => {
-            crate::jmap_objects::email_submission_set(state, m, account_id, &args).await
+            let v = crate::jmap_objects::email_submission_set(state, m, account_id, &args).await;
+            let _ = tx.commit().await;
+            v
         }
-        ("VacationResponse", "get") => Ok(json!({"list": [], "state": "0", "notFound": []})),
-        _ => Err("unknownMethod".to_string()),
+        ("VacationResponse", "get") => {
+            let _ = tx.commit().await;
+            Ok(json!({"list": [], "state": "0", "notFound": []}))
+        }
+        _ => {
+            let _ = tx.commit().await;
+            Err("unknownMethod".to_string())
+        }
     }
 }
 
@@ -306,15 +365,19 @@ async fn handle_ws_batch(
     req: jmap::JmapRequest,
 ) -> String {
     let mut resp = jmap::JmapResponse::new();
-    let Ok(mut conn) = state.pool.acquire().await else {
+    // PROVRLS-1: explicit transaction — the context is transaction-local.
+    let Ok(mut tx) = state.pool.begin().await else {
         resp.push_error("serverFail", "ws".to_string());
         return resp.to_json().to_string();
     };
-    let _ = auth::set_mail_tenant_context(&mut conn, m.env_id(), m.account_id).await;
-    let Ok(account_id) = auth::bind_account(&mut conn, m).await else {
+    let _ = auth::set_mail_tenant_context(&mut tx, m, m.env_id(), m.account_id).await;
+    let Ok(account_id) = auth::bind_account(&mut tx, m).await else {
         resp.push_error("accountNotFound", "ws".to_string());
         return resp.to_json().to_string();
     };
+    // The per-method dispatch opens its own transaction (context stamp +
+    // object handler on one connection); this binding tx is done.
+    drop(tx);
     for (name, _full, mut args, call_id) in req.method_calls {
         let Some((object, verb)) = jmap::MethodCall::split(&name) else {
             resp.push_error("unknownMethod", call_id.clone());
@@ -342,11 +405,14 @@ async fn handle_ws_batch(
 /// Poll the account's changelog head and build a StateChange envelope —
 /// `None` when there is no change since the last emission (tracked by
 /// the caller's changelog MAX snapshot diff inside `current_state`).
-async fn ws_state_change(state: &AppState, m: &crate::auth::MailAuth) -> Option<serde_json::Value> {
-    let mut conn = state.pool.acquire().await.ok()?;
-    auth::set_mail_tenant_context(&mut conn, m.env_id(), m.account_id).await;
-    let account_id = auth::bind_account(&mut conn, m).await.ok()?;
-    crate::push_stream::current_state(&mut conn, account_id).await
+async fn ws_state_change(state: &AppState, m: &auth::MailAuth) -> Option<serde_json::Value> {
+    // PROVRLS-1: explicit transaction — context + query share one tx.
+    let mut tx = state.pool.begin().await.ok()?;
+    auth::set_mail_tenant_context(&mut tx, m, m.env_id(), m.account_id).await;
+    let account_id = auth::bind_account(&mut tx, m).await.ok()?;
+    let state_now = crate::push_stream::current_state(&mut tx, account_id).await;
+    tx.commit().await.ok()?;
+    state_now
 }
 
 /// `GET /jmap/download/{account_id}/{blob_hash}/{name}` — blob download.
@@ -441,8 +507,10 @@ pub async fn upload(
         )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, m.env_id(), account_id).await;
+    // PROVRLS-1: explicit transaction — the context stamp is
+    // transaction-local; the blob_links insert shares the tx.
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), account_id).await;
     sqlx::query(
         "INSERT INTO email8.blob_links (env_id, owner_account_id, blob_hash, ref_kind, expires_at) \
          VALUES ($1, $2, $3, 'reserved', now() + interval '1 day') ON CONFLICT DO NOTHING",
@@ -450,9 +518,10 @@ pub async fn upload(
     .bind(m.env_id())
     .bind(account_id)
     .bind(&hash)
-    .execute(&mut *conn)
+    .execute(&mut *tx)
     .await
     .map_err(err_db)?;
+    tx.commit().await.map_err(err_db)?;
 
     Ok(Json(jmap::upload_result(
         &account_id.to_string(),

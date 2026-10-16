@@ -56,32 +56,39 @@ pub async fn resolve_address(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, Uuid::nil()).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, Uuid::nil()).await;
     let lower = req.address.to_ascii_lowercase();
 
     // Group expansion first.
-    let members = store_ops::group_members(&mut conn, req.env_id, &lower)
+    let members = store_ops::group_members(&mut tx, req.env_id, &lower)
         .await
         .map_err(err_op)?;
     if !members.is_empty() {
+        tx.commit().await.map_err(err_db)?;
         return Ok(Json(ResolvedAddress::Group {
             group_id: Uuid::nil(),
             members,
         }));
     }
-    match store_ops::resolve_address(&mut conn, req.env_id, &req.address)
+    match store_ops::resolve_address(&mut tx, req.env_id, &req.address)
         .await
         .map_err(err_op)?
     {
-        Some(account_id) => Ok(Json(ResolvedAddress::Account {
-            account_id,
-            name: req.address.clone(),
-            address: req.address,
-        })),
-        None => Ok(Json(ResolvedAddress::External {
-            address: req.address,
-        })),
+        Some(account_id) => {
+            tx.commit().await.map_err(err_db)?;
+            Ok(Json(ResolvedAddress::Account {
+                account_id,
+                name: req.address.clone(),
+                address: req.address,
+            }))
+        }
+        None => {
+            tx.commit().await.map_err(err_db)?;
+            Ok(Json(ResolvedAddress::External {
+                address: req.address,
+            }))
+        }
     }
 }
 
@@ -101,11 +108,11 @@ pub async fn ingest(
     .await?;
     // Fetch the raw bytes from Storage before opening the transaction.
     let raw = fetch_blob(&state, &req.blob_hash).await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
 
     let outcome = store_ops::ingest_email(
-        &mut conn,
+        &mut tx,
         req.env_id,
         req.account_id,
         &raw,
@@ -187,6 +194,7 @@ pub async fn ingest(
         .await;
     }
 
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(IngestedEmail {
         email_id: outcome.email_id,
         account_id: req.account_id,
@@ -225,17 +233,18 @@ pub async fn list_mailboxes(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, q.env_id, q.account_id).await;
     let rows = sqlx::query(
         "SELECT id, account_id, name, role, parent_id, sort_order, uid_validity, uid_next, is_subscribed \
          FROM email8.mailboxes WHERE env_id = $1 AND account_id = $2 ORDER BY sort_order, id",
     )
     .bind(q.env_id)
     .bind(q.account_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(
         rows.iter()
             .map(|r| MailboxDto {
@@ -267,8 +276,8 @@ pub async fn create_mailbox(
         "email8:mail:write",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     // Entity ids are DB-generated UUIDs; the sequences table only backs
     // change-id counters now.
     let id = uuid::Uuid::new_v4();
@@ -285,9 +294,10 @@ pub async fn create_mailbox(
     .bind(&req.role)
     .bind(req.parent_id)
     .bind(chrono::Utc::now().timestamp_millis())
-    .fetch_one(&mut *conn)
+    .fetch_one(&mut *tx)
     .await
     .map_err(err_db)?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(MailboxDto {
         id: row.get("id"),
         account_id: row.get("account_id"),
@@ -317,10 +327,10 @@ pub async fn changes_since(
     .await?;
     let collection = email8::contracts::Collection::from_u16(req.collection)
         .ok_or((StatusCode::BAD_REQUEST, "unknown collection".into()))?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let window = store_ops::changes_since(
-        &mut conn,
+        &mut tx,
         req.account_id,
         collection,
         req.since_change_id,
@@ -328,6 +338,7 @@ pub async fn changes_since(
     )
     .await
     .map_err(map_op)?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(ChangesSinceResponse {
         old_state: window.old_state,
         new_state: window.new_state,
@@ -355,15 +366,15 @@ pub async fn submit(
     .await?;
     // Verify the user's identity binding: return_path must be one of the
     // caller's addresses (master design §4.4 — enforced again at Mta).
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let known: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM email8.principal_addresses WHERE env_id = $1 AND account_id = $2 AND lower(address) = lower($3)",
     )
     .bind(req.env_id)
     .bind(req.account_id)
     .bind(&req.return_path)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?;
     if known.is_none() && !req.return_path.is_empty() {
@@ -396,6 +407,7 @@ pub async fn submit(
         .json()
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(verdict))
 }
 
@@ -413,14 +425,14 @@ pub async fn blob_quota(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let used: i64 = sqlx::query_scalar(
         "SELECT COALESCE(used_bytes, 0) FROM email8.quota_counters WHERE env_id = $1 AND account_id = $2",
     )
     .bind(req.env_id)
     .bind(req.account_id)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?
     .unwrap_or(0);
@@ -428,10 +440,11 @@ pub async fn blob_quota(
         "SELECT default_account_quota_bytes FROM email8.quota_policy WHERE env_id = $1",
     )
     .bind(req.env_id)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?
     .unwrap_or(10 * 1024 * 1024 * 1024);
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(BlobQuotaVerdict {
         allowed: policy == 0 || used + req.size <= policy,
         used_bytes: used,
@@ -461,8 +474,8 @@ pub async fn get_email(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, env_id, account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, env_id, account_id).await;
     let row = sqlx::query(
         "SELECT id, blob_hash, thread_id, size, received_at, sent_at, message_id, subject, \
                 preview, keywords, has_attachment, metadata \
@@ -471,7 +484,7 @@ pub async fn get_email(
     .bind(env_id)
     .bind(account_id)
     .bind(email_id)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?
     .ok_or((StatusCode::NOT_FOUND, "email not found".into()))?;
@@ -480,7 +493,7 @@ pub async fn get_email(
     )
     .bind(account_id)
     .bind(email_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
     let mailboxes: serde_json::Value = memberships
@@ -488,6 +501,7 @@ pub async fn get_email(
         .map(|(m, u)| serde_json::json!({"mailbox_id": m, "imap_uid": u}))
         .collect::<Vec<_>>()
         .into();
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(serde_json::json!({
         "id": row.get::<Uuid, _>("id"),
         "blob_hash": row.get::<String, _>("blob_hash"),
@@ -529,8 +543,8 @@ pub async fn list_mailbox_emails(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, q.env_id, q.account_id).await;
     let rows = sqlx::query(
         "SELECT e.id, m.imap_uid, e.size, e.keywords, e.subject, e.received_at \
          FROM email8.email_mailboxes m \
@@ -540,7 +554,7 @@ pub async fn list_mailbox_emails(
     )
     .bind(q.account_id)
     .bind(q.mailbox_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
     let items: Vec<serde_json::Value> = rows
@@ -556,6 +570,7 @@ pub async fn list_mailbox_emails(
             })
         })
         .collect();
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
@@ -585,7 +600,7 @@ pub async fn destroy_emails(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     for id in &req.email_ids {
         sqlx::query(
             "DELETE FROM email8.email_mailboxes \
@@ -685,7 +700,7 @@ pub async fn set_email_keywords(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     // Normalize: lowercase, strip backslashes.
     let norm: Vec<String> = req
         .keywords
@@ -772,7 +787,7 @@ pub async fn copy_emails(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     for id in &req.email_ids {
         // Allocate the destination uid.
         let uid: i64 = sqlx::query_scalar(
@@ -849,7 +864,7 @@ pub async fn ingest_append(
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     // Ingest into the target mailbox.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let outcome = store_ops::ingest_email(
         &mut tx,
         req.env_id,
@@ -893,15 +908,15 @@ pub async fn sieve_list(
         "email8:sieve:manage",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let rows = sqlx::query(
         "SELECT s.id, s.name, s.is_active, s.size, s.updated_at \
          FROM email8.sieve_scripts s \
          WHERE s.account_id = $1 ORDER BY s.name",
     )
     .bind(req.account_id)
-    .fetch_all(&mut *conn)
+    .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
     let items: Vec<serde_json::Value> = rows
@@ -915,6 +930,7 @@ pub async fn sieve_list(
             })
         })
         .collect();
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
@@ -939,17 +955,18 @@ pub async fn sieve_get(
         "email8:sieve:manage",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT blob_hash FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2",
     )
     .bind(req.account_id)
     .bind(&req.name)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?;
     let Some((blob_hash,)) = row else {
+        tx.commit().await.map_err(err_db)?;
         return Ok(Json(serde_json::json!({})));
     };
     let storage = crate::storage_auth::storage_client(
@@ -963,6 +980,7 @@ pub async fn sieve_get(
         .get("", "", &format!("email8/sieve/{blob_hash}"))
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(serde_json::json!({
         "source": String::from_utf8_lossy(&bytes),
     })))
@@ -1009,8 +1027,8 @@ pub async fn sieve_put(
         )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     // Allocate the script id only when inserting a new row (the upsert
     // path reuses the existing id via ON CONFLICT). Entity ids are
     // DB-generated UUIDs; sequences only back change-id counters now.
@@ -1028,7 +1046,7 @@ pub async fn sieve_put(
     .bind(&hash)
     .bind(req.source.len() as i64)
     .bind(id)
-    .execute(&mut *conn)
+    .execute(&mut *tx)
     .await
     .map_err(err_db)?;
     let _ = result;
@@ -1059,7 +1077,7 @@ pub async fn sieve_set_active(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     sqlx::query("UPDATE email8.sieve_scripts SET is_active = false WHERE account_id = $1")
         .bind(req.account_id)
         .execute(&mut *tx)
@@ -1127,15 +1145,16 @@ pub async fn sieve_delete(
         "email8:sieve:manage",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let result =
         sqlx::query("DELETE FROM email8.sieve_scripts WHERE account_id = $1 AND name = $2")
             .bind(req.account_id)
             .bind(&req.name)
-            .execute(&mut *conn)
+            .execute(&mut *tx)
             .await
             .map_err(err_db)?;
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(
         serde_json::json!({ "deleted": result.rows_affected() > 0 }),
     ))
@@ -1163,8 +1182,8 @@ pub async fn sieve_rename(
         "email8:sieve:manage",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, req.env_id, req.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let result = sqlx::query(
         "UPDATE email8.sieve_scripts SET name = $3 \
          WHERE account_id = $1 AND name = $2",
@@ -1172,7 +1191,7 @@ pub async fn sieve_rename(
     .bind(req.account_id)
     .bind(&req.from)
     .bind(&req.to)
-    .execute(&mut *conn)
+    .execute(&mut *tx)
     .await
     .map_err(err_db)?;
     if result.rows_affected() == 0 {
@@ -1270,7 +1289,7 @@ pub async fn acl_grant(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     sqlx::query(
         r#"INSERT INTO email8.acl_grants
                (env_id, account_id, collection, document_id, grantee_account_id, rights)
@@ -1329,7 +1348,7 @@ pub async fn acl_revoke(
     )
     .await?;
     let mut tx = state.pool.begin().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut tx, req.env_id, req.account_id).await;
+    auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let deleted = sqlx::query(
         "DELETE FROM email8.acl_grants \
          WHERE account_id = $1 AND collection = $2 AND document_id = $3 AND grantee_account_id = $4",
@@ -1341,8 +1360,8 @@ pub async fn acl_revoke(
     .execute(&mut *tx)
     .await
     .map_err(err_db)?;
-    tx.commit().await.map_err(err_db)?;
     let revoked = deleted.rows_affected() > 0;
+    tx.commit().await.map_err(err_db)?;
     emit_event(
         &state.pool,
         req.env_id,
@@ -1383,8 +1402,8 @@ pub async fn acl_effective_rights(
         "email8:mail:read",
     )
     .await?;
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, q.env_id, q.account_id).await;
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, q.env_id, q.account_id).await;
     let grantee = q.grantee_account_id.unwrap_or(q.account_id);
     // The owner holds every right; a grantee holds the union of grants.
     let rights: Option<i32> = sqlx::query_scalar(
@@ -1395,7 +1414,7 @@ pub async fn acl_effective_rights(
     .bind(q.collection)
     .bind(q.document_id)
     .bind(grantee)
-    .fetch_optional(&mut *conn)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(err_db)?;
     let effective = if grantee == q.account_id {
@@ -1403,6 +1422,7 @@ pub async fn acl_effective_rights(
     } else {
         rights.unwrap_or(0)
     };
+    tx.commit().await.map_err(err_db)?;
     Ok(Json(serde_json::json!({
         "rights": effective,
         "is_owner": grantee == q.account_id,

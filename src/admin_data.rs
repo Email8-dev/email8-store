@@ -61,10 +61,13 @@ pub async fn admin_data(
     )
     .await?;
 
-    let mut conn = state.pool.acquire().await.map_err(err_db)?;
-    auth::set_mail_tenant_context(&mut conn, env_id, q.account_id.unwrap_or(Uuid::nil())).await;
+    // PROVRLS-1: explicit transaction — the context stamp is
+    // transaction-local (set_config(..., true)) and would evaporate
+    // before the data query on an autocommit connection.
+    let mut tx = state.pool.begin().await.map_err(err_db)?;
+    auth::set_mail_tenant_context(&mut tx, &_a, env_id, q.account_id.unwrap_or(Uuid::nil())).await;
 
-    match page.as_str() {
+    let result = match page.as_str() {
         "users" | "overview" => {
             let principals: Vec<(Uuid, String, Option<String>, chrono::DateTime<chrono::Utc>)> =
                 sqlx::query_as(
@@ -72,14 +75,14 @@ pub async fn admin_data(
                      WHERE env_id = $1 ORDER BY created_at DESC LIMIT 200",
                 )
                 .bind(env_id)
-                .fetch_all(&mut *conn)
+                .fetch_all(&mut *tx)
                 .await
                 .map_err(err_db)?;
             let quotas: Vec<(Uuid, i64, i64)> = sqlx::query_as(
                 "SELECT account_id, used_bytes, used_objects FROM email8.quota_counters WHERE env_id = $1",
             )
             .bind(env_id)
-            .fetch_all(&mut *conn)
+            .fetch_all(&mut *tx)
             .await
             .map_err(err_db)?;
             let rows: Vec<serde_json::Value> = principals
@@ -104,7 +107,7 @@ pub async fn admin_data(
                  FROM email8.domains WHERE env_id = $1 ORDER BY name",
             )
             .bind(env_id)
-            .fetch_all(&mut *conn)
+            .fetch_all(&mut *tx)
             .await
             .map_err(err_db)?;
             Ok(Json(serde_json::json!({
@@ -118,7 +121,7 @@ pub async fn admin_data(
                 "SELECT id, address, description FROM email8.groups WHERE env_id = $1 ORDER BY address",
             )
             .bind(env_id)
-            .fetch_all(&mut *conn)
+            .fetch_all(&mut *tx)
             .await
             .map_err(err_db)?;
             Ok(Json(serde_json::json!({
@@ -132,7 +135,7 @@ pub async fn admin_data(
                 "SELECT default_account_quota_bytes FROM email8.quota_policy WHERE env_id = $1",
             )
             .bind(env_id)
-            .fetch_optional(&mut *conn)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(err_db)?;
             Ok(Json(serde_json::json!({
@@ -143,7 +146,9 @@ pub async fn admin_data(
             StatusCode::NOT_FOUND,
             format!("Unknown admin data page: {other}"),
         )),
-    }
+    };
+    tx.commit().await.map_err(err_db)?;
+    result
 }
 
 /// Alias so the router (typed on `AppState`) accepts the handler.

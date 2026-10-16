@@ -85,6 +85,15 @@ async fn next_change_id(
 
 /// Provision a principal + bootstrap mailboxes + default identity.
 /// Idempotent on (env_id, sub) — re-running returns the existing id.
+///
+/// Runs inside the CALLER'S transaction with the tenant context already
+/// stamped on the same connection (PROVRLS-1 design §2.1): the env-tier
+/// `principals` policies admit the m2m consumer's writes, and the
+/// existence SELECT sees prior rows under the same in-transaction
+/// context (at-least-once redelivery never duplicates). Before the
+/// holder-tier child writes (addresses/mailboxes) the account binding
+/// is stamped in the same transaction — the id is known by then, so
+/// `app.account_id` admits the children without env-admin elevation.
 pub async fn provision_principal(
     conn: &mut PgConnection,
     env_id: Uuid,
@@ -92,10 +101,6 @@ pub async fn provision_principal(
     primary_address: &str,
     display_name: Option<&str>,
 ) -> StoreResult<Uuid> {
-    // Resolve-or-insert the principal. bootstrap_mailboxes runs in both
-    // branches — it is idempotent (ON CONFLICT DO NOTHING) so a principal
-    // provisioned before a crash or before a bugfix still gets its
-    // bootstrap mailboxes backfilled on the next provision event.
     let existing: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM email8.principals WHERE env_id = $1 AND sentin8_auth_user_id = $2",
     )
@@ -105,6 +110,7 @@ pub async fn provision_principal(
     .await?;
     let account_id = match existing {
         Some(id) => {
+            bind_account_context(conn, id).await?;
             bootstrap_mailboxes(conn, env_id, id).await?;
             id
         }
@@ -121,6 +127,7 @@ pub async fn provision_principal(
             .bind(display_name)
             .fetch_one(&mut *conn)
             .await?;
+            bind_account_context(conn, id).await?;
             // Primary address alias row.
             sqlx::query(
                 "INSERT INTO email8.principal_addresses (env_id, account_id, address, is_primary) VALUES ($1, $2, $3, TRUE) ON CONFLICT DO NOTHING",
@@ -135,6 +142,19 @@ pub async fn provision_principal(
         }
     };
     Ok(account_id)
+}
+
+/// Stamp the holder-tier account binding on the provision connection
+/// (same transaction — the caller's context stamp and this binding both
+/// live until the enclosing COMMIT; the child-table policies
+/// `account_id = sentin8_current_account_id()` admit the bootstrap
+/// writes for the freshly created principal).
+async fn bind_account_context(conn: &mut PgConnection, account_id: Uuid) -> StoreResult<()> {
+    sqlx::query("SELECT set_config('app.account_id', $1::text, true)")
+        .bind(account_id.to_string())
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
 }
 
 /// Create the fixed special-use mailbox set (INBOX=0 … ARCHIVE=5) with
