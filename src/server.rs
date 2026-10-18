@@ -185,7 +185,16 @@ pub fn routes(router: axum::Router<AppState>) -> axum::Router<AppState> {
         )
 }
 
-async fn health() -> impl axum::response::IntoResponse {
+#[utoipa::path(
+    get,
+    path = "/v1/health",
+    responses(
+        (status = 200, description = "Liveness (version, build)"),
+    ),
+    security(),
+    tag = "store",
+)]
+pub async fn health() -> impl axum::response::IntoResponse {
     axum::Json(serde_json::json!({
         "status": "ok",
         "service": "email8:store",

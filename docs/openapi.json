@@ -10,7 +10,733 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/jmap": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /jmap` — the method-call batch.",
+        "operationId": "api",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "JMAP request/response batch (RFC 8620 §3.6)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        },
+        "security": []
+      }
+    },
+    "/jmap/download/{account_id}/{blob_id}/{name}": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`GET /jmap/download/{account_id}/{blob_hash}/{name}` — blob download.",
+        "operationId": "download",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "JMAP account id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blob_id",
+            "in": "path",
+            "description": "Blob id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Download filename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The raw blob bytes"
+          }
+        },
+        "security": []
+      }
+    },
+    "/jmap/eventsource": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "event_source",
+        "responses": {
+          "200": {
+            "description": "JMAP EventSource SSE stream (push notifications)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/jmap/session": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`GET /jmap/session` — the RFC 8620 session resource.",
+        "operationId": "session",
+        "responses": {
+          "200": {
+            "description": "JMAP session (capabilities + endpoint URLs)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          }
+        },
+        "security": []
+      }
+    },
+    "/jmap/upload/{account_id}": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /jmap/upload/{account_id}` — blob upload (RFC 9404).",
+        "operationId": "upload",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "JMAP account id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Blob created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/jmap/ws": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`GET /jmap/ws` — RFC 8887 JMAP over WebSocket. After the upgrade the\nserver accepts JMAP `Request` frames as text messages and replies with\n`Response` frames; unsolicited `StateChange` pushes are emitted when\nthe changelog advances. Auth is via the `access_token` query param\n(browsers cannot set headers on the upgrade request).",
+        "operationId": "jmap_ws",
+        "responses": {
+          "101": {
+            "description": "WebSocket upgrade (JMAP over WS)"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/admin/attributes": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_list_attributes",
+        "responses": {
+          "200": {
+            "description": "Principal attributes of this service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_put_attribute",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Attribute stored",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid attribute definition"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_delete_attribute",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Attribute id to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attribute deleted"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_list_sets",
+        "responses": {
+          "200": {
+            "description": "Policy sets of this service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets/disable": {
+      "post": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_mode_disable",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sets disabled"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets/enforce": {
+      "post": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_mode_enforce",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sets switched to enforce mode"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets/shadow": {
+      "post": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_mode_shadow",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sets switched to shadow mode"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets/{name}": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_get_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Policy set name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The policy set",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          },
+          "404": {
+            "description": "Unknown policy set name"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_put_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Policy set name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Policy set stored",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid policy set definition"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_delete_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Policy set name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Policy set deleted"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/policy-sets/{name}/test": {
+      "post": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_test_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Policy set name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dry-run decision trace",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/relations": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_list_relations",
+        "responses": {
+          "200": {
+            "description": "ReBAC relations of this service",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_put_relation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Relation stored",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid relation definition"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_delete_relation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Relation id to delete",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relation deleted"
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
+    "/v1/admin/relations/check": {
+      "get": {
+        "tags": [
+          "policy"
+        ],
+        "operationId": "policy_check_relation",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "description": "Subject key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "description": "Relation name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object",
+            "in": "query",
+            "description": "Object key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The check verdict",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Caller lacks the admin scope"
+          }
+        },
+        "security": [
+          {
+            "sentin8:admin": []
+          }
+        ]
+      }
+    },
     "/v1/admin/{page}": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`GET /v1/admin/ui/{page}` — RFW definition for the requested page.",
+        "operationId": "get_admin_ui",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "path",
+            "description": "RFW page name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RFW page definition",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "403": {
+            "description": "Policy deny"
+          },
+          "404": {
+            "description": "Unknown page"
+          }
+        },
+        "security": []
+      },
       "post": {
         "tags": [
           "email8-store"
@@ -67,6 +793,617 @@
             "description": "Unknown page"
           }
         }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Liveness (version, build)"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/acl/grant": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "acl_grant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Granted"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/acl/revoke": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "acl_revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Revoked"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/acl/rights": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "acl_effective_rights",
+        "responses": {
+          "200": {
+            "description": "Effective rights",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/blob-quota": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/blob-quota` — upload quota gate.",
+        "operationId": "blob_quota",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Quota verdict",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/changes": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/changes` — changelog window (JMAP/IMAP sync).",
+        "operationId": "changes_since",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "State changes",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/email/keywords": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "set_email_keywords",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Keywords set"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/email/store": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/email/store` — store the raw blob for an APPEND\n(IMAP/POP3 upload path): bytes → Storage, blob-hash returned.",
+        "operationId": "store_raw_blob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Blob stored",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/email/{env_id}/{account_id}/{email_id}": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "get_email",
+        "parameters": [
+          {
+            "name": "env_id",
+            "in": "path",
+            "description": "Env id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email_id",
+            "in": "path",
+            "description": "Email id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The email",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown email"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/emails/copy": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "copy_emails",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Copied",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/emails/destroy": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "destroy_emails",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Destroyed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/ingest": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/ingest` — local delivery filing.",
+        "operationId": "ingest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Ingested",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/ingest/append": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "ingest_append",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Appended",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/mailbox/emails": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "list_mailbox_emails",
+        "responses": {
+          "200": {
+            "description": "Emails in the mailbox",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/mailboxes": {
+      "get": {
+        "tags": [
+          "store"
+        ],
+        "operationId": "list_mailboxes",
+        "responses": {
+          "200": {
+            "description": "Mailboxes",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/mailboxes` — create a mailbox.",
+        "operationId": "create_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Mailbox created",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/resolve": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/resolve` — RCPT resolution (sub-addressing, aliases,\ncatch-all, group expansion).",
+        "operationId": "resolve_address",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved address",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/delete": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/delete` — remove a script row.",
+        "operationId": "sieve_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/get": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/get` — one script's source (from Storage).",
+        "operationId": "sieve_get",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Script",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/list": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/list` — the account's scripts + active flag.",
+        "operationId": "sieve_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Scripts",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/put": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/put` — store a compiled script (blob →\nStorage, row upsert).",
+        "operationId": "sieve_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Stored"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/rename": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/rename` — rename a script.",
+        "operationId": "sieve_rename",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Renamed"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/sieve/setactive": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/sieve/setactive` — flip the active script (only one\nmay be active; the row flips + the account pointer updates).",
+        "operationId": "sieve_set_active",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Activated"
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/internal/submit": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "`POST /v1/internal/submit` — enqueue a submission into the Mta queue.\nStore proxies to Mta (it owns the queue); the response is Mta's.",
+        "operationId": "submit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Submitted",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": []
       }
     }
   },
@@ -644,6 +1981,10 @@
   },
   "security": [],
   "tags": [
+    {
+      "name": "policy",
+      "description": "Shield policy administration (shared surface)"
+    },
     {
       "name": "email8-store",
       "description": "Sentin8 Email8:Store — mail data core + JMAP API"

@@ -43,6 +43,16 @@ pub struct AppState {
 
 /// `POST /v1/internal/resolve` — RCPT resolution (sub-addressing, aliases,
 /// catch-all, group expansion).
+#[utoipa::path(
+    post,
+    path = "/v1/internal/resolve",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Resolved address", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn resolve_address(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -93,6 +103,16 @@ pub async fn resolve_address(
 }
 
 /// `POST /v1/internal/ingest` — local delivery filing.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/ingest",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Ingested", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn ingest(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -220,6 +240,15 @@ pub struct ListMailboxesQuery {
     pub account_id: Uuid,
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/internal/mailboxes",
+    responses(
+        (status = 200, description = "Mailboxes", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn list_mailboxes(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -263,6 +292,16 @@ pub async fn list_mailboxes(
 }
 
 /// `POST /v1/internal/mailboxes` — create a mailbox.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/mailboxes",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Mailbox created", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn create_mailbox(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -312,6 +351,16 @@ pub async fn create_mailbox(
 }
 
 /// `POST /v1/internal/changes` — changelog window (JMAP/IMAP sync).
+#[utoipa::path(
+    post,
+    path = "/v1/internal/changes",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "State changes", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn changes_since(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -351,6 +400,16 @@ pub async fn changes_since(
 
 /// `POST /v1/internal/submit` — enqueue a submission into the Mta queue.
 /// Store proxies to Mta (it owns the queue); the response is Mta's.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/submit",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Submitted", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn submit(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -412,6 +471,16 @@ pub async fn submit(
 }
 
 /// `POST /v1/internal/blob-quota` — upload quota gate.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/blob-quota",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Quota verdict", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn blob_quota(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -461,6 +530,21 @@ pub struct EmailPath {
     pub email_id: Uuid,
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/internal/email/{env_id}/{account_id}/{email_id}",
+    params(
+        ("env_id" = String, Path, description = "Env id"),
+        ("account_id" = String, Path, description = "Account id"),
+        ("email_id" = String, Path, description = "Email id"),
+    ),
+    responses(
+        (status = 200, description = "The email", body = serde_json::Value),
+        (status = 404, description = "Unknown email"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn get_email(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -530,6 +614,15 @@ pub struct MailboxEmailsQuery {
     pub mailbox_id: Uuid,
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/internal/mailbox/emails",
+    responses(
+        (status = 200, description = "Emails in the mailbox", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn list_mailbox_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -586,6 +679,16 @@ pub struct DestroyEmailsRequest {
     pub email_ids: Vec<Uuid>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/emails/destroy",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Destroyed", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn destroy_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -634,6 +737,16 @@ pub async fn destroy_emails(
 
 /// `POST /v1/internal/email/store` — store the raw blob for an APPEND
 /// (IMAP/POP3 upload path): bytes → Storage, blob-hash returned.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/email/store",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Blob stored", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn store_raw_blob(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -686,6 +799,16 @@ pub struct KeywordsRequest {
     pub keywords: Vec<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/email/keywords",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Keywords set"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn set_email_keywords(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -773,6 +896,16 @@ pub struct CopyEmailsRequest {
     pub email_ids: Vec<Uuid>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/emails/copy",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Copied", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn copy_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -826,6 +959,16 @@ pub struct AppendRequest {
     pub raw_b64: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/ingest/append",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Appended", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn ingest_append(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -895,6 +1038,16 @@ pub struct SieveBase {
 }
 
 /// `POST /v1/internal/sieve/list` — the account's scripts + active flag.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/list",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Scripts", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_list(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -942,6 +1095,16 @@ pub struct SieveGet {
 }
 
 /// `POST /v1/internal/sieve/get` — one script's source (from Storage).
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/get",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Script", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_get(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -996,6 +1159,16 @@ pub struct SievePut {
 
 /// `POST /v1/internal/sieve/put` — store a compiled script (blob →
 /// Storage, row upsert).
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/put",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Stored"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_put(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1063,6 +1236,16 @@ pub struct SieveActive {
 
 /// `POST /v1/internal/sieve/setactive` — flip the active script (only one
 /// may be active; the row flips + the account pointer updates).
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/setactive",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Activated"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_set_active(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1132,6 +1315,16 @@ pub struct SieveDelete {
 }
 
 /// `POST /v1/internal/sieve/delete` — remove a script row.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/delete",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Deleted"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_delete(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1169,6 +1362,16 @@ pub struct SieveRename {
 }
 
 /// `POST /v1/internal/sieve/rename` — rename a script.
+#[utoipa::path(
+    post,
+    path = "/v1/internal/sieve/rename",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Renamed"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn sieve_rename(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1275,6 +1478,16 @@ pub struct AclGrantRequest {
     pub rights: i32,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/acl/grant",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Granted"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn acl_grant(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1334,6 +1547,16 @@ pub struct AclRevokeRequest {
     pub grantee_account_id: Uuid,
 }
 
+#[utoipa::path(
+    post,
+    path = "/v1/internal/acl/revoke",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Revoked"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn acl_revoke(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1389,6 +1612,15 @@ pub struct AclRightsQuery {
     pub grantee_account_id: Option<Uuid>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/v1/internal/acl/rights",
+    responses(
+        (status = 200, description = "Effective rights", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn acl_effective_rights(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -1430,7 +1430,7 @@ dependencies = [
 [[package]]
 name = "email8"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "email8-contracts",
  "email8-dav-proto",
@@ -1450,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "email8-contracts"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "chrono",
  "sentin8",
@@ -1464,7 +1464,7 @@ dependencies = [
 [[package]]
 name = "email8-dav-proto"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "chrono",
 ]
@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "email8-gate-contracts"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "sentin8",
  "serde",
@@ -1486,7 +1486,7 @@ dependencies = [
 [[package]]
 name = "email8-ical"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "chrono",
  "serde",
@@ -1495,7 +1495,7 @@ dependencies = [
 [[package]]
 name = "email8-imap-proto"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "thiserror 1.0.69",
  "uuid",
@@ -1504,7 +1504,7 @@ dependencies = [
 [[package]]
 name = "email8-jmap-proto"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "serde",
  "serde_json",
@@ -1514,7 +1514,7 @@ dependencies = [
 [[package]]
 name = "email8-mail-auth"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1532,7 +1532,7 @@ dependencies = [
 [[package]]
 name = "email8-mail-core"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "base64 0.22.1",
  "blake3",
@@ -1548,7 +1548,7 @@ dependencies = [
 [[package]]
 name = "email8-mail-queue"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1558,7 +1558,7 @@ dependencies = [
 [[package]]
 name = "email8-sieve"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "chrono",
  "regex",
@@ -1568,7 +1568,7 @@ dependencies = [
 [[package]]
 name = "email8-smtp-proto"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
@@ -1577,7 +1577,7 @@ dependencies = [
 [[package]]
 name = "email8-spam"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "async-trait",
  "serde",
@@ -1623,7 +1623,7 @@ dependencies = [
 [[package]]
 name = "email8-vcard"
 version = "0.1.0"
-source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.5#7332879236fb96b5eaf26cc7b074189e47057e31"
+source = "git+https://github.com/Email8-dev/email8-sdk?tag=email8-v0.5.6#c425c3168b1d54186a5b3432d78b12b861407f24"
 dependencies = [
  "serde",
  "serde_json",
@@ -4183,22 +4183,22 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 [[package]]
 name = "sentin8"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "sentin8-audit",
  "sentin8-auth-client",
  "sentin8-build-info",
  "sentin8-bus-client",
  "sentin8-bus-contracts",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-crypto 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-crypto 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-fapiclient",
  "sentin8-idempotency",
  "sentin8-jwt",
- "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-membus",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-openapi",
  "sentin8-outbox",
  "sentin8-registration",
@@ -4215,13 +4215,13 @@ dependencies = [
 [[package]]
 name = "sentin8-audit"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "async-trait",
  "chrono",
  "reqwest 0.12.28",
- "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "sqlx",
@@ -4234,7 +4234,7 @@ dependencies = [
 [[package]]
 name = "sentin8-auth-client"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -4244,9 +4244,9 @@ dependencies = [
  "rand 0.8.8",
  "reqwest 0.12.28",
  "rsa",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-jwt",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-workload-registry",
  "serde",
  "serde_json",
@@ -4260,19 +4260,19 @@ dependencies = [
 [[package]]
 name = "sentin8-build-info"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 
 [[package]]
 name = "sentin8-bus-client"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "chrono",
  "reqwest 0.12.28",
  "sentin8-auth-client",
  "sentin8-bus-contracts",
- "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -4284,7 +4284,7 @@ dependencies = [
 [[package]]
 name = "sentin8-bus-contracts"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "chrono",
  "serde",
@@ -4311,7 +4311,7 @@ dependencies = [
 [[package]]
 name = "sentin8-config"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "dotenvy",
  "figment",
@@ -4339,7 +4339,7 @@ dependencies = [
 [[package]]
 name = "sentin8-crypto"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -4366,7 +4366,7 @@ dependencies = [
 [[package]]
 name = "sentin8-errors"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "axum",
@@ -4380,7 +4380,7 @@ dependencies = [
 [[package]]
 name = "sentin8-fapiclient"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -4404,7 +4404,7 @@ dependencies = [
 [[package]]
 name = "sentin8-idempotency"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "async-trait",
  "axum",
@@ -4419,7 +4419,7 @@ dependencies = [
 [[package]]
 name = "sentin8-jwt"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "base64 0.22.1",
  "serde",
@@ -4449,14 +4449,14 @@ dependencies = [
 [[package]]
 name = "sentin8-m2m"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "reqwest 0.12.28",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-crypto 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-crypto 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -4469,11 +4469,11 @@ dependencies = [
 [[package]]
 name = "sentin8-membus"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "futures-util",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -4515,7 +4515,7 @@ dependencies = [
 [[package]]
 name = "sentin8-middleware"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "axum",
  "chrono",
@@ -4526,8 +4526,8 @@ dependencies = [
  "reqwest 0.12.28",
  "rustls",
  "rustls-graviola",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -4544,7 +4544,7 @@ dependencies = [
 [[package]]
 name = "sentin8-openapi"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "axum",
  "utoipa",
@@ -4553,7 +4553,7 @@ dependencies = [
 [[package]]
 name = "sentin8-outbox"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "sentin8-bus-client",
@@ -4570,7 +4570,7 @@ dependencies = [
 [[package]]
 name = "sentin8-registration"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "serde",
@@ -4581,7 +4581,7 @@ dependencies = [
 [[package]]
 name = "sentin8-rfw"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "serde",
  "serde_json",
@@ -4590,12 +4590,12 @@ dependencies = [
 [[package]]
 name = "sentin8-service-discovery"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "chrono",
  "futures-util",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "tokio",
@@ -4606,7 +4606,7 @@ dependencies = [
 [[package]]
 name = "sentin8-shell"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "axum",
@@ -4615,9 +4615,9 @@ dependencies = [
  "sentin8-auth-client",
  "sentin8-build-info",
  "sentin8-bus-client",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-openapi",
  "sentin8-outbox",
  "sentin8-shield",
@@ -4636,7 +4636,7 @@ dependencies = [
 [[package]]
 name = "sentin8-shield"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -4648,7 +4648,7 @@ dependencies = [
  "sentin8-auth-client",
  "sentin8-bus-client",
  "sentin8-bus-contracts",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-membus",
  "sentin8-outbox",
  "sentin8-tls",
@@ -4658,6 +4658,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tracing",
+ "utoipa",
  "uuid",
 ]
 
@@ -4699,7 +4700,7 @@ dependencies = [
 [[package]]
 name = "sentin8-tls"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "anyhow",
  "axum",
@@ -4715,10 +4716,10 @@ dependencies = [
  "rustls",
  "rustls-graviola",
  "rustls-pemfile",
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-m2m 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "sentin8-service-discovery",
  "sentin8-tls-contracts",
  "serde",
@@ -4736,10 +4737,10 @@ dependencies = [
 [[package]]
 name = "sentin8-tls-contracts"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
  "chrono",
- "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-errors 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "uuid",
@@ -4748,10 +4749,10 @@ dependencies = [
 [[package]]
 name = "sentin8-workload-registry"
 version = "0.1.0"
-source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5#b3169cd5ae87d5340ae1dba103a9469377263e40"
+source = "git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6#29e567093ab0f6d6d206ddd2b73777f23c7ab452"
 dependencies = [
- "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
- "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.5)",
+ "sentin8-config 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
+ "sentin8-middleware 0.1.0 (git+https://github.com/Sentin8/sentin8-sdk?tag=sdk-v0.6.6)",
  "serde",
  "serde_json",
  "thiserror 1.0.69",

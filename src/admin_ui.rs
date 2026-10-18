@@ -17,6 +17,18 @@ use sentin8::rfw::widget::*;
 use crate::data_api::AppState;
 
 /// `GET /v1/admin/ui/{page}` — RFW definition for the requested page.
+#[utoipa::path(
+    get,
+    path = "/v1/admin/{page}",
+    params(("page" = String, Path, description = "RFW page name")),
+    responses(
+        (status = 200, description = "RFW page definition", body = serde_json::Value),
+        (status = 403, description = "Policy deny"),
+        (status = 404, description = "Unknown page"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn get_admin_ui(
     State(state): State<AppState>,
     headers: HeaderMap,

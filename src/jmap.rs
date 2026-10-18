@@ -23,6 +23,16 @@ use serde_json::json;
 use crate::{auth, data_api::AppState};
 
 /// `GET /jmap/session` — the RFC 8620 session resource.
+#[utoipa::path(
+    get,
+    path = "/jmap/session",
+    responses(
+        (status = 200, description = "JMAP session (capabilities + endpoint URLs)", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn session(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -78,6 +88,17 @@ pub async fn session(
 }
 
 /// `POST /jmap` — the method-call batch.
+#[utoipa::path(
+    post,
+    path = "/jmap",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "JMAP request/response batch (RFC 8620 §3.6)", body = serde_json::Value),
+        (status = 401, description = "Not authenticated"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn api(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -285,6 +306,15 @@ fn err_string<E: std::fmt::Display>(e: E) -> String {
 /// `Response` frames; unsolicited `StateChange` pushes are emitted when
 /// the changelog advances. Auth is via the `access_token` query param
 /// (browsers cannot set headers on the upgrade request).
+#[utoipa::path(
+    get,
+    path = "/jmap/ws",
+    responses(
+        (status = 101, description = "WebSocket upgrade (JMAP over WS)"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn jmap_ws(
     ws: axum::extract::ws::WebSocketUpgrade,
     Query(q): Query<WsQuery>,
@@ -416,6 +446,20 @@ async fn ws_state_change(state: &AppState, m: &auth::MailAuth) -> Option<serde_j
 }
 
 /// `GET /jmap/download/{account_id}/{blob_hash}/{name}` — blob download.
+#[utoipa::path(
+    get,
+    path = "/jmap/download/{account_id}/{blob_id}/{name}",
+    params(
+        ("account_id" = String, Path, description = "JMAP account id"),
+        ("blob_id" = String, Path, description = "Blob id"),
+        ("name" = String, Path, description = "Download filename"),
+    ),
+    responses(
+        (status = 200, description = "The raw blob bytes"),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn download(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -452,6 +496,17 @@ pub async fn download(
 }
 
 /// `POST /jmap/upload/{account_id}` — blob upload (RFC 9404).
+#[utoipa::path(
+    post,
+    path = "/jmap/upload/{account_id}",
+    params(("account_id" = String, Path, description = "JMAP account id")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Blob created", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn upload(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -543,6 +598,15 @@ pub struct EventSourceQuery {
     pub ping: Option<u32>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/jmap/eventsource",
+    responses(
+        (status = 200, description = "JMAP EventSource SSE stream (push notifications)", body = serde_json::Value),
+    ),
+    security(),
+    tag = "store",
+)]
 pub async fn event_source(
     State(state): State<AppState>,
     headers: HeaderMap,
