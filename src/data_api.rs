@@ -43,12 +43,187 @@ pub struct AppState {
 
 /// `POST /v1/internal/resolve` - RCPT resolution (sub-addressing, aliases,
 /// catch-all, group expansion).
+// ── Typed response envelopes (OAPEC-9; OAPEC JMAP semantics) ──────────────
+
+/// An email with its mailbox memberships (wire mirror of the stored doc;
+/// `metadata` stays a value field per JMAP).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct EmailDoc {
+    /// The email id.
+    pub id: Uuid,
+    /// The blob the full message lives in.
+    pub blob_hash: String,
+    /// The thread id.
+    pub thread_id: Uuid,
+    /// Size in bytes.
+    pub size: i64,
+    /// When the email was received.
+    pub received_at: chrono::DateTime<chrono::Utc>,
+    /// Send date (absent for drafts).
+    pub sent_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// RFC 5322 Message-ID.
+    pub message_id: Option<String>,
+    /// Subject.
+    pub subject: Option<String>,
+    /// Preview snippet.
+    pub preview: Option<String>,
+    /// IMAP keywords/flags.
+    pub keywords: Vec<String>,
+    /// Attachment presence.
+    pub has_attachment: bool,
+    /// The raw metadata document (JMAP extension fields).
+    pub metadata: serde_json::Value,
+    /// Mailbox memberships + per-mailbox UIDs.
+    pub mailboxes: serde_json::Value,
+}
+
+/// One mailbox email row (IMAP/POP3 projection).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MailboxEmailRow {
+    /// The email id.
+    pub id: Uuid,
+    /// The IMAP UID in the mailbox.
+    pub uid: u32,
+    /// Size in bytes.
+    pub size: i64,
+    /// IMAP keywords/flags.
+    pub keywords: Vec<String>,
+    /// Subject.
+    pub subject: Option<String>,
+    /// Received timestamp.
+    pub received_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Mailbox emails list.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MailboxEmails {
+    /// The mailbox's emails.
+    pub items: Vec<MailboxEmailRow>,
+}
+
+/// Blob-store ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct BlobStored {
+    /// The content-addressed blob hash.
+    pub blob_hash: String,
+    /// Blob size in bytes.
+    pub size: usize,
+}
+
+/// Keyword-set ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct KeywordsUpdated {
+    /// Always `true` (else the request errors).
+    pub updated: bool,
+}
+
+/// Copy ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct CopiedCount {
+    /// Emails copied.
+    pub copied: usize,
+}
+
+/// Append (IMAP APPEND) result.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct AppendResult {
+    /// The created email id.
+    pub email_id: Uuid,
+    /// The UID assigned in the target mailbox (absent in preview-only paths).
+    pub imap_uid: Option<u32>,
+}
+
+/// Sieve scripts list.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveScriptRow {
+    /// The script id.
+    pub id: Uuid,
+    /// The script name.
+    pub name: String,
+    /// Whether the script is active.
+    pub is_active: bool,
+    /// Source size in bytes.
+    pub size: i64,
+}
+
+/// Sieve scripts list.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveList {
+    /// The script rows.
+    pub items: Vec<SieveScriptRow>,
+}
+
+/// Sieve script content.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveSource {
+    /// The script source (UTF-8).
+    pub source: String,
+}
+
+/// Sieve put ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveStored {
+    /// Always `true`.
+    pub stored: bool,
+}
+
+/// Sieve active-script ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveActiveAck {
+    /// The now-active script name (empty = none).
+    pub active: String,
+}
+
+/// Sieve delete ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveDeleted {
+    /// `true` when a script row was removed.
+    pub deleted: bool,
+}
+
+/// Sieve rename ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct SieveRenamed {
+    /// Always `true`.
+    pub renamed: bool,
+}
+
+/// Destroy count ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct DestroyedCount {
+    /// Emails destroyed.
+    pub destroyed: usize,
+}
+
+/// ACL grant ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct AclGranted {
+    /// Always `true`.
+    pub granted: bool,
+}
+
+/// ACL revoke ack.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct AclRevoked {
+    /// Whether the grant existed (and was removed).
+    pub revoked: bool,
+}
+
+/// Effective-rights read.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct AclEffectiveRights {
+    /// The rights bitmask (RFC 2086-style ACL int; owner = i32::MAX).
+    pub rights: i32,
+    /// Whether the grantee owns the mailbox.
+    pub is_owner: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/v1/internal/resolve",
-    request_body = serde_json::Value,
+    request_body = ResolvedAddress,
     responses(
-        (status = 200, description = "Resolved address", body = serde_json::Value),
+        (status = 200, description = "Resolved address", body = ResolvedAddress),
     ),
     security(),
     tag = "store",
@@ -106,9 +281,9 @@ pub async fn resolve_address(
 #[utoipa::path(
     post,
     path = "/v1/internal/ingest",
-    request_body = serde_json::Value,
+    request_body = IngestedEmail,
     responses(
-        (status = 200, description = "Ingested", body = serde_json::Value),
+        (status = 200, description = "Ingested", body = IngestedEmail),
     ),
     security(),
     tag = "store",
@@ -234,7 +409,7 @@ pub async fn ingest(
 
 /// `GET /v1/internal/mailboxes?env_id=&account_id=` - list an account's
 /// mailboxes (Access services bootstrap their session cache from this).
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ListMailboxesQuery {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -244,7 +419,7 @@ pub struct ListMailboxesQuery {
     get,
     path = "/v1/internal/mailboxes",
     responses(
-        (status = 200, description = "Mailboxes", body = serde_json::Value),
+        (status = 200, description = "Mailboxes", body = Vec<MailboxDto>),
     ),
     security(),
     tag = "store",
@@ -295,9 +470,9 @@ pub async fn list_mailboxes(
 #[utoipa::path(
     post,
     path = "/v1/internal/mailboxes",
-    request_body = serde_json::Value,
+    request_body = MailboxDto,
     responses(
-        (status = 200, description = "Mailbox created", body = serde_json::Value),
+        (status = 200, description = "Mailbox created", body = MailboxDto),
     ),
     security(),
     tag = "store",
@@ -354,9 +529,9 @@ pub async fn create_mailbox(
 #[utoipa::path(
     post,
     path = "/v1/internal/changes",
-    request_body = serde_json::Value,
+    request_body = ChangesSinceResponse,
     responses(
-        (status = 200, description = "State changes", body = serde_json::Value),
+        (status = 200, description = "State changes", body = ChangesSinceResponse),
     ),
     security(),
     tag = "store",
@@ -403,9 +578,9 @@ pub async fn changes_since(
 #[utoipa::path(
     post,
     path = "/v1/internal/submit",
-    request_body = serde_json::Value,
+    request_body = SubmitResponse,
     responses(
-        (status = 200, description = "Submitted", body = serde_json::Value),
+        (status = 200, description = "Submitted", body = SubmitResponse),
     ),
     security(),
     tag = "store",
@@ -474,9 +649,9 @@ pub async fn submit(
 #[utoipa::path(
     post,
     path = "/v1/internal/blob-quota",
-    request_body = serde_json::Value,
+    request_body = BlobQuotaVerdict,
     responses(
-        (status = 200, description = "Quota verdict", body = serde_json::Value),
+        (status = 200, description = "Quota verdict", body = BlobQuotaVerdict),
     ),
     security(),
     tag = "store",
@@ -523,7 +698,7 @@ pub async fn blob_quota(
 
 /// `GET /v1/internal/email/{email_id}` - fetch one email's metadata (Access
 /// FETCH path) with mailbox membership.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct EmailPath {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -539,7 +714,7 @@ pub struct EmailPath {
         ("email_id" = String, Path, description = "Email id"),
     ),
     responses(
-        (status = 200, description = "The email", body = serde_json::Value),
+        (status = 200, description = "The email", body = EmailDoc),
         (status = 404, description = "Unknown email"),
     ),
     security(),
@@ -549,7 +724,7 @@ pub async fn get_email(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path((env_id, account_id, email_id)): Path<(Uuid, Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<EmailDoc>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -586,28 +761,28 @@ pub async fn get_email(
         .collect::<Vec<_>>()
         .into();
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({
-        "id": row.get::<Uuid, _>("id"),
-        "blob_hash": row.get::<String, _>("blob_hash"),
-        "thread_id": row.get::<Uuid, _>("thread_id"),
-        "size": row.get::<i64, _>("size"),
-        "received_at": row.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
-        "sent_at": row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("sent_at"),
-        "message_id": row.get::<Option<String>, _>("message_id"),
-        "subject": row.get::<Option<String>, _>("subject"),
-        "preview": row.get::<Option<String>, _>("preview"),
-        "keywords": row.get::<Vec<String>, _>("keywords"),
-        "has_attachment": row.get::<bool, _>("has_attachment"),
-        "metadata": row.get::<serde_json::Value, _>("metadata"),
-        "mailboxes": mailboxes,
-    })))
+    Ok(Json(EmailDoc {
+        id: row.get::<Uuid, _>("id"),
+        blob_hash: row.get::<String, _>("blob_hash"),
+        thread_id: row.get::<Uuid, _>("thread_id"),
+        size: row.get::<i64, _>("size"),
+        received_at: row.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
+        sent_at: row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("sent_at"),
+        message_id: row.get::<Option<String>, _>("message_id"),
+        subject: row.get::<Option<String>, _>("subject"),
+        preview: row.get::<Option<String>, _>("preview"),
+        keywords: row.get::<Vec<String>, _>("keywords"),
+        has_attachment: row.get::<bool, _>("has_attachment"),
+        metadata: row.get::<serde_json::Value, _>("metadata"),
+        mailboxes,
+    }))
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
 /// `GET /v1/internal/mailbox/emails?env_id=&account_id=&mailbox_id=` -
 /// a mailbox's messages (id, uid, size, flags) for POP3/IMAP projections.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct MailboxEmailsQuery {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -618,7 +793,7 @@ pub struct MailboxEmailsQuery {
     get,
     path = "/v1/internal/mailbox/emails",
     responses(
-        (status = 200, description = "Emails in the mailbox", body = serde_json::Value),
+        (status = 200, description = "Emails in the mailbox", body = MailboxEmails),
     ),
     security(),
     tag = "store",
@@ -627,7 +802,7 @@ pub async fn list_mailbox_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<MailboxEmailsQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<MailboxEmails>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -650,28 +825,28 @@ pub async fn list_mailbox_emails(
     .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<MailboxEmailRow> = rows
         .iter()
         .map(|r| {
-            serde_json::json!({
-                "id": r.get::<Uuid, _>("id"),
-                "uid": r.get::<i64, _>("imap_uid"),
-                "size": r.get::<i64, _>("size"),
-                "keywords": r.get::<Vec<String>, _>("keywords"),
-                "subject": r.get::<Option<String>, _>("subject"),
-                "received_at": r.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
-            })
+            MailboxEmailRow {
+                id: r.get::<Uuid, _>("id"),
+                uid: r.get::<i64, _>("imap_uid").max(0) as u32,
+                size: r.get::<i64, _>("size"),
+                keywords: r.get::<Vec<String>, _>("keywords"),
+                subject: r.get::<Option<String>, _>("subject"),
+                received_at: r.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
+            }
         })
         .collect();
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(MailboxEmails { items }))
 }
 
 /// `POST /v1/internal/emails/destroy` - batch expunge (POP3 QUIT, IMAP
 /// EXPUNGE). Only removes the membership row (message moves to no
 /// mailbox → eligible for GC; the POP3/IMAP destroy is a membership
 /// delete + `destroyed` changelog entries).
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct DestroyEmailsRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -682,9 +857,9 @@ pub struct DestroyEmailsRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/emails/destroy",
-    request_body = serde_json::Value,
+    request_body = DestroyEmailsRequest,
     responses(
-        (status = 200, description = "Destroyed", body = serde_json::Value),
+        (status = 200, description = "Destroyed", body = DestroyedCount),
     ),
     security(),
     tag = "store",
@@ -693,7 +868,7 @@ pub async fn destroy_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<DestroyEmailsRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<DestroyedCount>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -730,9 +905,9 @@ pub async fn destroy_emails(
         .map_err(err_db)?;
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "destroyed": req.email_ids.len() }),
-    ))
+    Ok(Json(DestroyedCount {
+        destroyed: req.email_ids.len(),
+    }))
 }
 
 /// `POST /v1/internal/email/store` - store the raw blob for an APPEND
@@ -740,9 +915,9 @@ pub async fn destroy_emails(
 #[utoipa::path(
     post,
     path = "/v1/internal/email/store",
-    request_body = serde_json::Value,
+    request_body = [u8],
     responses(
-        (status = 200, description = "Blob stored", body = serde_json::Value),
+        (status = 200, description = "Blob stored", body = BlobStored),
     ),
     security(),
     tag = "store",
@@ -751,7 +926,7 @@ pub async fn store_raw_blob(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: axum::body::Bytes,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<BlobStored>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -778,10 +953,10 @@ pub async fn store_raw_blob(
         )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    Ok(Json(serde_json::json!({
-        "blob_hash": hash,
-        "size": body.len(),
-    })))
+    Ok(Json(BlobStored {
+        blob_hash: hash,
+        size: body.len(),
+    }))
 }
 
 fn blake3_hash(data: &[u8]) -> String {
@@ -789,7 +964,7 @@ fn blake3_hash(data: &[u8]) -> String {
 }
 
 /// `POST /v1/internal/email/keywords` - flag set/clear (IMAP STORE).
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct KeywordsRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -802,7 +977,7 @@ pub struct KeywordsRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/email/keywords",
-    request_body = serde_json::Value,
+    request_body = KeywordsRequest,
     responses(
         (status = 200, description = "Keywords set"),
     ),
@@ -813,7 +988,7 @@ pub async fn set_email_keywords(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<KeywordsRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<KeywordsUpdated>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -884,11 +1059,11 @@ pub async fn set_email_keywords(
         .map_err(err_db)?;
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "updated": true })))
+    Ok(Json(KeywordsUpdated { updated: true }))
 }
 
 /// `POST /v1/internal/emails/copy` - membership add (IMAP COPY/MOVE).
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CopyEmailsRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -899,9 +1074,9 @@ pub struct CopyEmailsRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/emails/copy",
-    request_body = serde_json::Value,
+    request_body = CopyEmailsRequest,
     responses(
-        (status = 200, description = "Copied", body = serde_json::Value),
+        (status = 200, description = "Copied", body = CopiedCount),
     ),
     security(),
     tag = "store",
@@ -910,7 +1085,7 @@ pub async fn copy_emails(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<CopyEmailsRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<CopiedCount>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -946,12 +1121,12 @@ pub async fn copy_emails(
         .map_err(err_db)?;
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "copied": req.email_ids.len() })))
+    Ok(Json(CopiedCount { copied: req.email_ids.len() }))
 }
 
 /// `POST /v1/internal/ingest/append` - IMAP APPEND / POP3-compatible
 /// upload: raw bytes → blob → email row + membership in one call.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct AppendRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -962,9 +1137,9 @@ pub struct AppendRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/ingest/append",
-    request_body = serde_json::Value,
+    request_body = AppendRequest,
     responses(
-        (status = 200, description = "Appended", body = serde_json::Value),
+        (status = 200, description = "Appended", body = AppendResult),
     ),
     security(),
     tag = "store",
@@ -973,7 +1148,7 @@ pub async fn ingest_append(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<AppendRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AppendResult>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1021,15 +1196,15 @@ pub async fn ingest_append(
     .await
     .map_err(err_op)?;
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({
-        "email_id": outcome.email_id,
-        "imap_uid": outcome.mailboxes.first().map(|(_, uid)| *uid),
-    })))
+    Ok(Json(AppendResult {
+        email_id: outcome.email_id,
+        imap_uid: outcome.mailboxes.first().map(|(_, uid)| *uid as u32),
+    }))
 }
 
 // ── Sieve scripts (RFC 5804 backing store) ───────────────────────────────
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SieveBase {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1041,9 +1216,9 @@ pub struct SieveBase {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/list",
-    request_body = serde_json::Value,
+    request_body = SieveBase,
     responses(
-        (status = 200, description = "Scripts", body = serde_json::Value),
+        (status = 200, description = "Scripts", body = SieveList),
     ),
     security(),
     tag = "store",
@@ -1052,7 +1227,7 @@ pub async fn sieve_list(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SieveBase>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveList>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1072,22 +1247,20 @@ pub async fn sieve_list(
     .fetch_all(&mut *tx)
     .await
     .map_err(err_db)?;
-    let items: Vec<serde_json::Value> = rows
+    let items: Vec<SieveScriptRow> = rows
         .iter()
-        .map(|r| {
-            serde_json::json!({
-                "id": r.get::<Uuid, _>("id"),
-                "name": r.get::<String, _>("name"),
-                "is_active": r.get::<bool, _>("is_active"),
-                "size": r.get::<i64, _>("size"),
-            })
+        .map(|r| SieveScriptRow {
+            id: r.get::<Uuid, _>("id"),
+            name: r.get::<String, _>("name"),
+            is_active: r.get::<bool, _>("is_active"),
+            size: r.get::<i64, _>("size"),
         })
         .collect();
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "items": items })))
+    Ok(Json(SieveList { items }))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SieveGet {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1098,9 +1271,9 @@ pub struct SieveGet {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/get",
-    request_body = serde_json::Value,
+    request_body = SieveGet,
     responses(
-        (status = 200, description = "Script", body = serde_json::Value),
+        (status = 200, description = "Script", body = SieveSource),
     ),
     security(),
     tag = "store",
@@ -1109,7 +1282,7 @@ pub async fn sieve_get(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SieveGet>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveSource>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1130,7 +1303,7 @@ pub async fn sieve_get(
     .map_err(err_db)?;
     let Some((blob_hash,)) = row else {
         tx.commit().await.map_err(err_db)?;
-        return Ok(Json(serde_json::json!({})));
+        return Err((StatusCode::NOT_FOUND, "no such script".into()));
     };
     let storage = crate::storage_auth::storage_client(
         &state.pool,
@@ -1144,12 +1317,12 @@ pub async fn sieve_get(
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({
-        "source": String::from_utf8_lossy(&bytes),
-    })))
+    Ok(Json(SieveSource {
+        source: String::from_utf8_lossy(&bytes).into_owned(),
+    }))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SievePut {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1162,7 +1335,7 @@ pub struct SievePut {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/put",
-    request_body = serde_json::Value,
+    request_body = SievePut,
     responses(
         (status = 200, description = "Stored"),
     ),
@@ -1173,7 +1346,7 @@ pub async fn sieve_put(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SievePut>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveStored>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1223,10 +1396,10 @@ pub async fn sieve_put(
     .await
     .map_err(err_db)?;
     let _ = result;
-    Ok(Json(serde_json::json!({ "stored": true })))
+    Ok(Json(SieveStored { stored: true }))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SieveActive {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1239,7 +1412,7 @@ pub struct SieveActive {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/setactive",
-    request_body = serde_json::Value,
+    request_body = SieveActive,
     responses(
         (status = 200, description = "Activated"),
     ),
@@ -1250,7 +1423,7 @@ pub async fn sieve_set_active(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SieveActive>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveActiveAck>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1304,10 +1477,12 @@ pub async fn sieve_set_active(
         }
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({ "active": req.name })))
+    Ok(Json(SieveActiveAck {
+        active: req.name.unwrap_or_default(),
+    }))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SieveDelete {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1318,7 +1493,7 @@ pub struct SieveDelete {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/delete",
-    request_body = serde_json::Value,
+    request_body = SieveDelete,
     responses(
         (status = 200, description = "Deleted"),
     ),
@@ -1329,7 +1504,7 @@ pub async fn sieve_delete(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SieveDelete>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveDeleted>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1348,12 +1523,12 @@ pub async fn sieve_delete(
             .await
             .map_err(err_db)?;
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(
-        serde_json::json!({ "deleted": result.rows_affected() > 0 }),
-    ))
+    Ok(Json(SieveDeleted {
+        deleted: result.rows_affected() > 0,
+    }))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SieveRename {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1365,7 +1540,7 @@ pub struct SieveRename {
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/rename",
-    request_body = serde_json::Value,
+    request_body = SieveRename,
     responses(
         (status = 200, description = "Renamed"),
     ),
@@ -1376,7 +1551,7 @@ pub async fn sieve_rename(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<SieveRename>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<SieveRenamed>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1400,7 +1575,7 @@ pub async fn sieve_rename(
     if result.rows_affected() == 0 {
         return Err((StatusCode::NOT_FOUND, "no such script".into()));
     }
-    Ok(Json(serde_json::json!({ "renamed": true })))
+    Ok(Json(SieveRenamed { renamed: true }))
 }
 
 fn err_db(e: sqlx::Error) -> (StatusCode, String) {
@@ -1467,7 +1642,7 @@ async fn emit_event(
 // ── ACL grants + effective rights (story 2.7) ─────────────────────────────
 
 /// `POST /v1/internal/acl/grant` - grant rights on one document.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct AclGrantRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1481,7 +1656,7 @@ pub struct AclGrantRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/acl/grant",
-    request_body = serde_json::Value,
+    request_body = AclGrantRequest,
     responses(
         (status = 200, description = "Granted"),
     ),
@@ -1492,7 +1667,7 @@ pub async fn acl_grant(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<AclGrantRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AclGranted>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1534,11 +1709,11 @@ pub async fn acl_grant(
         }),
     )
     .await;
-    Ok(Json(serde_json::json!({ "granted": true })))
+    Ok(Json(AclGranted { granted: true }))
 }
 
 /// `POST /v1/internal/acl/revoke` - remove a grant.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct AclRevokeRequest {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1550,7 +1725,7 @@ pub struct AclRevokeRequest {
 #[utoipa::path(
     post,
     path = "/v1/internal/acl/revoke",
-    request_body = serde_json::Value,
+    request_body = AclRevokeRequest,
     responses(
         (status = 200, description = "Revoked"),
     ),
@@ -1561,7 +1736,7 @@ pub async fn acl_revoke(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<AclRevokeRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AclRevoked>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1596,13 +1771,13 @@ pub async fn acl_revoke(
         }),
     )
     .await;
-    Ok(Json(serde_json::json!({ "revoked": revoked })))
+    Ok(Json(AclRevoked { revoked }))
 }
 
 /// `GET /v1/internal/acl/rights?env_id&grantee_account_id&collection&document_id`
 /// - effective rights for a grantee on one document (the union of
 /// direct grants; owners implicitly hold everything).
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct AclRightsQuery {
     pub env_id: Uuid,
     pub account_id: Uuid,
@@ -1616,7 +1791,7 @@ pub struct AclRightsQuery {
     get,
     path = "/v1/internal/acl/rights",
     responses(
-        (status = 200, description = "Effective rights", body = serde_json::Value),
+        (status = 200, description = "Effective rights", body = AclEffectiveRights),
     ),
     security(),
     tag = "store",
@@ -1625,7 +1800,7 @@ pub async fn acl_effective_rights(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<AclRightsQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AclEffectiveRights>, (StatusCode, String)> {
     let _a = auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -1655,10 +1830,10 @@ pub async fn acl_effective_rights(
         rights.unwrap_or(0)
     };
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(serde_json::json!({
-        "rights": effective,
-        "is_owner": grantee == q.account_id,
-    })))
+    Ok(Json(AclEffectiveRights {
+        rights: effective,
+        is_owner: grantee == q.account_id,
+    }))
 }
 
 /// Map a JMAP push type string ("Email", "Mailbox", "Calendar", …) to

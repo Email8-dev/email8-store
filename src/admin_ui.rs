@@ -22,7 +22,7 @@ use crate::data_api::AppState;
     path = "/v1/admin/{page}",
     params(("page" = String, Path, description = "RFW page name")),
     responses(
-        (status = 200, description = "RFW page definition", body = serde_json::Value),
+        (status = 200, description = "RFW page definition", body = sentin8::rfw::AdminUiResponse),
         (status = 403, description = "Policy deny"),
         (status = 404, description = "Unknown page"),
     ),
@@ -33,7 +33,7 @@ pub async fn get_admin_ui(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(page): Path<String>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
+) -> Result<Json<AdminUiResponse>, (axum::http::StatusCode, String)> {
     let _a = crate::auth::require_mail_auth(
         &state.config,
         &state.workload_registry,
@@ -57,9 +57,7 @@ pub async fn get_admin_ui(
         }
     };
 
-    Ok(Json(
-        serde_json::to_value(AdminUiResponse::page(page_def)).unwrap(),
-    ))
+    Ok(Json(AdminUiResponse::page(page_def)))
 }
 
 fn overview_page() -> AdminUiPage {

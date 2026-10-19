@@ -23,11 +23,48 @@ use serde_json::json;
 use crate::{auth, data_api::AppState};
 
 /// `GET /jmap/session` - the RFC 8620 session resource.
+// ── JMAP protocol DTOs (OAPEC-9; RFC 8620 dynamic surface) ────────────────
+
+/// The JMAP `session` document (RFC 8620 §2): capability objects are
+/// extension-defined, so the document is dynamic - documented as a
+/// transparent wrapper (wire-true, schema non-empty).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[serde(transparent)]
+pub struct JmapSessionDocument(
+    /// The session document (capability-keyed dynamic JSON).
+    pub serde_json::Value,
+);
+
+/// The JMAP request/response batch (RFC 8620 §3.6): method calls are
+/// extension-defined - same transparent-wrapper treatment.
+#[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(transparent)]
+pub struct JmapBatch(
+    /// The `using`/`methodCalls` request (or `methodResponses` reply).
+    pub serde_json::Value,
+);
+
+/// Blob-upload result (RFC 9404 §4; the jmap-proto helper shape).
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct JmapUploadResult {
+    /// The uploading account.
+    #[serde(rename = "accountId")]
+    pub account_id: String,
+    /// The blob id (content hash).
+    #[serde(rename = "blobId")]
+    pub blob_id: String,
+    /// Type declared at upload.
+    #[serde(rename = "type")]
+    pub content_type: String,
+    /// Size in bytes.
+    pub size: i64,
+}
+
 #[utoipa::path(
     get,
     path = "/jmap/session",
     responses(
-        (status = 200, description = "JMAP session (capabilities + endpoint URLs)", body = serde_json::Value),
+        (status = 200, description = "JMAP session (capabilities + endpoint URLs)", body = JmapSessionDocument),
         (status = 401, description = "Not authenticated"),
     ),
     security(),
@@ -91,9 +128,9 @@ pub async fn session(
 #[utoipa::path(
     post,
     path = "/jmap",
-    request_body = serde_json::Value,
+    request_body = JmapBatch,
     responses(
-        (status = 200, description = "JMAP request/response batch (RFC 8620 §3.6)", body = serde_json::Value),
+        (status = 200, description = "JMAP request/response batch (RFC 8620 §3.6)", body = JmapBatch),
         (status = 401, description = "Not authenticated"),
     ),
     security(),
@@ -500,9 +537,9 @@ pub async fn download(
     post,
     path = "/jmap/upload/{account_id}",
     params(("account_id" = String, Path, description = "JMAP account id")),
-    request_body = serde_json::Value,
+    request_body = [u8],
     responses(
-        (status = 201, description = "Blob created", body = serde_json::Value),
+        (status = 201, description = "Blob created", body = JmapUploadResult),
     ),
     security(),
     tag = "store",
@@ -602,7 +639,7 @@ pub struct EventSourceQuery {
     get,
     path = "/jmap/eventsource",
     responses(
-        (status = 200, description = "JMAP EventSource SSE stream (push notifications)", body = serde_json::Value),
+        (status = 200, description = "JMAP EventSource SSE stream (push notifications)", content_type = "text/event-stream", body = String),
     ),
     security(),
     tag = "store",

@@ -9,6 +9,7 @@
 //! REQUIRED (no fallback to the token's env), RLS context set on the same
 //! connection, explicit `WHERE env_id` clauses.
 
+use sentin8::rfw::policy_pages::AdminDataRows;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
@@ -36,7 +37,7 @@ pub struct AdminQuery {
         ("account_id" = Option<Uuid>, Query, description = "Optional account scope"),
     ),
     responses(
-        (status = 200, description = "Page data", body = serde_json::Value),
+        (status = 200, description = "Page data", body = AdminDataRows),
         (status = 400, description = "Missing target_env_id"),
         (status = 403, description = "Missing email8 admin scope"),
         (status = 404, description = "Unknown page"),
@@ -48,7 +49,7 @@ pub async fn admin_data(
     headers: HeaderMap,
     Path(page): Path<String>,
     Query(q): Query<AdminQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<AdminDataRows>, (StatusCode, String)> {
     let env_id = q
         .target_env_id
         .ok_or((StatusCode::BAD_REQUEST, "missing target_env_id".into()))?;
@@ -99,7 +100,7 @@ pub async fn admin_data(
                     })
                 })
                 .collect();
-            Ok(Json(serde_json::json!({ "items": rows })))
+            Ok(Json(AdminDataRows::Items { items: rows }))
         }
         "domains" => {
             let domains: Vec<(Uuid, String, bool, Option<String>)> = sqlx::query_as(
@@ -110,11 +111,17 @@ pub async fn admin_data(
             .fetch_all(&mut *tx)
             .await
             .map_err(err_db)?;
-            Ok(Json(serde_json::json!({
-                "items": domains.into_iter().map(|(id, name, enabled, catch_all)| serde_json::json!({
-                    "id": id, "name": name, "is_enabled": enabled, "catch_all": catch_all,
-                })).collect::<Vec<_>>(),
-            })))
+            Ok(Json(AdminDataRows::Items {
+                items: domains
+                    .into_iter()
+                    .map(|(id, name, enabled, catch_all)| {
+                        serde_json::json!({
+                            "id": id, "name": name, "is_enabled": enabled,
+                            "catch_all": catch_all,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            }))
         }
         "groups" => {
             let groups: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
@@ -124,11 +131,16 @@ pub async fn admin_data(
             .fetch_all(&mut *tx)
             .await
             .map_err(err_db)?;
-            Ok(Json(serde_json::json!({
-                "items": groups.into_iter().map(|(id, address, description)| serde_json::json!({
-                    "id": id, "address": address, "description": description,
-                })).collect::<Vec<_>>(),
-            })))
+            Ok(Json(AdminDataRows::Items {
+                items: groups
+                    .into_iter()
+                    .map(|(id, address, description)| {
+                        serde_json::json!({
+                            "id": id, "address": address, "description": description,
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            }))
         }
         "quotas" => {
             let policy: Option<i64> = sqlx::query_scalar(
@@ -138,9 +150,12 @@ pub async fn admin_data(
             .fetch_optional(&mut *tx)
             .await
             .map_err(err_db)?;
-            Ok(Json(serde_json::json!({
-                "default_account_quota_bytes": policy.unwrap_or(10_737_418_240),
-            })))
+            Ok(Json(AdminDataRows::Items {
+                items: vec![serde_json::json!({
+                    "default_account_quota_bytes":
+                        policy.unwrap_or(10_737_418_240),
+                })],
+            }))
         }
         other => Err((
             StatusCode::NOT_FOUND,
