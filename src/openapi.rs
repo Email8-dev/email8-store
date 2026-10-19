@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! OpenAPI spec for Email8:Store — the internal data API surface (the JMAP
+//! OpenAPI spec for Email8:Store - the internal data API surface (the JMAP
 //! endpoint is a protocol surface, not OpenAPI-described).
 
 use utoipa::OpenApi;
@@ -77,6 +77,6 @@ use utoipa::OpenApi;
     security(),
     tags(
         (name = "policy", description = "Shield policy administration (shared surface)"),
-        (name = "email8-store", description = "Sentin8 Email8:Store — mail data core + JMAP API"),
+        (name = "email8-store", description = "Sentin8 Email8:Store - mail data core + JMAP API"),
     ),
 )]pub struct StoreOpenApi;

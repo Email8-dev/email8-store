@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! JMAP API surface — `POST /jmap` (RFC 8620 request processing) plus the
+//! JMAP API surface - `POST /jmap` (RFC 8620 request processing) plus the
 //! session resource, blob download/upload, and the EventSource stream.
 //!
 //! Design: `email8/design/sentin8-email8-store-technical-design.md` §7.
@@ -22,7 +22,7 @@ use serde_json::json;
 
 use crate::{auth, data_api::AppState};
 
-/// `GET /jmap/session` — the RFC 8620 session resource.
+/// `GET /jmap/session` - the RFC 8620 session resource.
 #[utoipa::path(
     get,
     path = "/jmap/session",
@@ -48,7 +48,7 @@ pub async fn session(
     let account_id = if m.account_id != Uuid::nil() {
         m.account_id
     } else {
-        // PROVRLS-1: context + binding SELECT share ONE transaction —
+        // PROVRLS-1: context + binding SELECT share ONE transaction -
         // the transaction-local context evaporates on autocommit.
         let mut tx = state.pool.begin().await.map_err(err_db)?;
         auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), Uuid::nil()).await;
@@ -87,7 +87,7 @@ pub async fn session(
     Ok(Json(body).into_response())
 }
 
-/// `POST /jmap` — the method-call batch.
+/// `POST /jmap` - the method-call batch.
 #[utoipa::path(
     post,
     path = "/jmap",
@@ -115,7 +115,7 @@ pub async fn api(
     let req = jmap::parse(&body).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Resolve the account binding once for the whole batch.
-    // PROVRLS-1: explicit transaction — the context is transaction-local.
+    // PROVRLS-1: explicit transaction - the context is transaction-local.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), m.account_id).await;
     let account_id = auth::bind_account(&mut tx, &m).await?;
@@ -156,7 +156,7 @@ pub async fn api(
     Ok(Json(resp.to_json()).into_response())
 }
 
-/// Method dispatch — P1 surface: Core/echo, Mailbox/Email get+changes+set
+/// Method dispatch - P1 surface: Core/echo, Mailbox/Email get+changes+set
 /// basics, Blob upload/download, Vacation/Vacancy get stubs.
 async fn dispatch(
     state: &AppState,
@@ -166,7 +166,7 @@ async fn dispatch(
     verb: &str,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    // PROVRLS-1: the context stamp is transaction-local — begin the
+    // PROVRLS-1: the context stamp is transaction-local - begin the
     // transaction FIRST, stamp inside it, and let the object handler run
     // on the same connection for the whole batch method.
     let mut tx = state.pool.begin().await.map_err(|e| e.to_string()).map_err(err_string)?;
@@ -301,7 +301,7 @@ fn err_string<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
-/// `GET /jmap/ws` — RFC 8887 JMAP over WebSocket. After the upgrade the
+/// `GET /jmap/ws` - RFC 8887 JMAP over WebSocket. After the upgrade the
 /// server accepts JMAP `Request` frames as text messages and replies with
 /// `Response` frames; unsolicited `StateChange` pushes are emitted when
 /// the changelog advances. Auth is via the `access_token` query param
@@ -371,7 +371,7 @@ async fn jmap_ws_session(
                 }
             }
             _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                // StateChange push (RFC 8887 §3.3) — poll the changelog
+                // StateChange push (RFC 8887 §3.3) - poll the changelog
                 // head and emit only when it advanced.
                 let Some(push) = ws_state_change(&state, &m).await else { continue };
                 if ws_tx
@@ -395,7 +395,7 @@ async fn handle_ws_batch(
     req: jmap::JmapRequest,
 ) -> String {
     let mut resp = jmap::JmapResponse::new();
-    // PROVRLS-1: explicit transaction — the context is transaction-local.
+    // PROVRLS-1: explicit transaction - the context is transaction-local.
     let Ok(mut tx) = state.pool.begin().await else {
         resp.push_error("serverFail", "ws".to_string());
         return resp.to_json().to_string();
@@ -432,11 +432,11 @@ async fn handle_ws_batch(
     resp.to_json().to_string()
 }
 
-/// Poll the account's changelog head and build a StateChange envelope —
+/// Poll the account's changelog head and build a StateChange envelope -
 /// `None` when there is no change since the last emission (tracked by
 /// the caller's changelog MAX snapshot diff inside `current_state`).
 async fn ws_state_change(state: &AppState, m: &auth::MailAuth) -> Option<serde_json::Value> {
-    // PROVRLS-1: explicit transaction — context + query share one tx.
+    // PROVRLS-1: explicit transaction - context + query share one tx.
     let mut tx = state.pool.begin().await.ok()?;
     auth::set_mail_tenant_context(&mut tx, m, m.env_id(), m.account_id).await;
     let account_id = auth::bind_account(&mut tx, m).await.ok()?;
@@ -445,7 +445,7 @@ async fn ws_state_change(state: &AppState, m: &auth::MailAuth) -> Option<serde_j
     state_now
 }
 
-/// `GET /jmap/download/{account_id}/{blob_hash}/{name}` — blob download.
+/// `GET /jmap/download/{account_id}/{blob_hash}/{name}` - blob download.
 #[utoipa::path(
     get,
     path = "/jmap/download/{account_id}/{blob_id}/{name}",
@@ -495,7 +495,7 @@ pub async fn download(
         .unwrap())
 }
 
-/// `POST /jmap/upload/{account_id}` — blob upload (RFC 9404).
+/// `POST /jmap/upload/{account_id}` - blob upload (RFC 9404).
 #[utoipa::path(
     post,
     path = "/jmap/upload/{account_id}",
@@ -562,7 +562,7 @@ pub async fn upload(
         )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    // PROVRLS-1: explicit transaction — the context stamp is
+    // PROVRLS-1: explicit transaction - the context stamp is
     // transaction-local; the blob_links insert shares the tx.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), account_id).await;
@@ -587,7 +587,7 @@ pub async fn upload(
     .into_response())
 }
 
-/// `GET /jmap/eventsource` — SSE state-change stream (RFC 8620 §7.1).
+/// `GET /jmap/eventsource` - SSE state-change stream (RFC 8620 §7.1).
 #[derive(Debug, serde::Deserialize)]
 pub struct EventSourceQuery {
     #[serde(default)]

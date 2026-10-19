@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! JMAP object handlers — Mailbox/Email/Thread get, query, changes.
+//! JMAP object handlers - Mailbox/Email/Thread get, query, changes.
 //! All run on a tenant-context connection with the account binding set.
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ use email8::mail_core::ParsedMessage;
 
 use crate::store_ops::{self, StoreOpError};
 
-/// `Mailbox/get` — list (optionally filtered by `ids`).
+/// `Mailbox/get` - list (optionally filtered by `ids`).
 pub async fn mailbox_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -66,7 +66,7 @@ pub async fn mailbox_get(
     Ok(json!({ "list": list, "state": state.to_string(), "notFound": [] }))
 }
 
-/// `Email/get` — full properties incl. preview + blob id.
+/// `Email/get` - full properties incl. preview + blob id.
 pub async fn email_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -107,7 +107,7 @@ pub async fn email_get(
         let id: Uuid = r.get("id");
         let received: chrono::DateTime<chrono::Utc> = r.get("received_at");
         let metadata: Value = r.get("metadata");
-        // Sender address comes from the parsed headers — fetch lazily via
+        // Sender address comes from the parsed headers - fetch lazily via
         // Storage only when properties were requested. P1 keeps the row
         // fields (headers are re-parsed by the client from blobId).
         let blob_hash: String = r.get("blob_hash");
@@ -211,7 +211,7 @@ pub async fn thread_get(
     Ok(json!({ "list": list, "state": state.to_string(), "notFound": [] }))
 }
 
-/// `Email/query` — filter translation onto the SQL surface (store design §4).
+/// `Email/query` - filter translation onto the SQL surface (store design §4).
 pub async fn email_query(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -340,7 +340,7 @@ pub async fn email_query(
     }))
 }
 
-/// `{Type}/changes` — shared for Email/Mailbox/Thread.
+/// `{Type}/changes` - shared for Email/Mailbox/Thread.
 pub async fn changes(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -379,7 +379,7 @@ pub fn parse_headers(raw: &[u8]) -> Option<ParsedMessage> {
 
 // ── JMAP set methods (RFC 8620 §5.3) ─────────────────────────────────────
 
-/// `Email/set` — update (keywords) / destroy. Creation flows through
+/// `Email/set` - update (keywords) / destroy. Creation flows through
 /// the ingest API (APPEND / SMTP), not through Email/set (RFC 8620
 /// §5.3: only the blob upload path can mint an email).
 pub async fn email_set(
@@ -401,7 +401,7 @@ pub async fn email_set(
     let mut not_updated = json!({});
     let mut not_destroyed = json!({});
 
-    // Update path — keywords / mailboxIds today.
+    // Update path - keywords / mailboxIds today.
     if let Some(updates) = args.get("update").and_then(|v| v.as_object()) {
         for (id_str, patch) in updates {
             let Ok(id) = id_str.parse::<Uuid>() else {
@@ -424,7 +424,7 @@ pub async fn email_set(
         }
     }
 
-    // Destroy path — tombstone + membership delete (the IMAP EXPUNGE
+    // Destroy path - tombstone + membership delete (the IMAP EXPUNGE
     // shares this semantics).
     if let Some(destroys) = args.get("destroy").and_then(|v| v.as_array()) {
         for id_val in destroys {
@@ -501,7 +501,7 @@ pub(crate) async fn email_apply_patch(
         .await?;
     }
     if let Some(mailbox_ids) = patch.get("mailboxIds").and_then(|v| v.as_object()) {
-        // Re-place the email into the set of mailboxes (RFC 8620 —
+        // Re-place the email into the set of mailboxes (RFC 8620 -
         // mailboxIds is the authoritative membership set).
         sqlx::query("DELETE FROM email8.email_mailboxes WHERE account_id = $1 AND email_id = $2")
             .bind(account_id)
@@ -540,7 +540,7 @@ pub(crate) async fn email_apply_patch(
     Ok(())
 }
 
-/// `Mailbox/set` — create / update / destroy mailboxes.
+/// `Mailbox/set` - create / update / destroy mailboxes.
 pub async fn mailbox_set(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -692,7 +692,7 @@ pub async fn mailbox_set(
     }))
 }
 
-/// `Identity/get` — the user's send identities (RFC 8622 §2.2).
+/// `Identity/get` - the user's send identities (RFC 8622 §2.2).
 pub async fn identity_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -738,7 +738,7 @@ pub async fn identity_get(
     Ok(json!({ "list": list, "notFound": [] }))
 }
 
-/// `PushSubscription/get` — the user's push subscriptions (RFC 8620 §7).
+/// `PushSubscription/get` - the user's push subscriptions (RFC 8620 §7).
 pub async fn push_subscription_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -768,7 +768,7 @@ pub async fn push_subscription_get(
 }
 // ── Groupware JMAP objects (story 4.5) ────────────────────────────────────
 
-/// `Calendar/get` — the account's calendar list.
+/// `Calendar/get` - the account's calendar list.
 pub async fn calendar_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -798,7 +798,7 @@ pub async fn calendar_get(
     Ok(json!({ "list": list, "notFound": [] }))
 }
 
-/// `CalendarEvent/get` — events (with occurrence data) filtered by
+/// `CalendarEvent/get` - events (with occurrence data) filtered by
 /// calendar via propertiesFilter.
 pub async fn calendar_event_get(
     conn: &mut sqlx::PgConnection,
@@ -854,7 +854,7 @@ pub async fn calendar_event_get(
     Ok(json!({ "list": list, "notFound": [] }))
 }
 
-/// `AddressBook/get` — the account's address books.
+/// `AddressBook/get` - the account's address books.
 pub async fn addressbook_get(
     conn: &mut sqlx::PgConnection,
     account_id: Uuid,
@@ -881,7 +881,7 @@ pub async fn addressbook_get(
     Ok(json!({ "list": list, "notFound": [] }))
 }
 
-/// `ContactCard/get` — contact cards (the parsed vCard JSON + the
+/// `ContactCard/get` - contact cards (the parsed vCard JSON + the
 /// normalized emails array for ham-override lookups).
 pub async fn contact_card_get(
     conn: &mut sqlx::PgConnection,
@@ -937,7 +937,7 @@ pub async fn contact_card_get(
 
 // ── EmailSubmission/set (story 3.11) ──────────────────────────────────────
 
-/// `EmailSubmission/set` — create submissions by proxying to the Mta
+/// `EmailSubmission/set` - create submissions by proxying to the Mta
 /// `/v1/internal/submit` API (RFC 8621 §6.3). Each create carries the
 /// draft Email id + envelope; onSuccessUpdateEmail-style chaining is
 /// the client's follow-up Email/set call.
@@ -1038,7 +1038,7 @@ pub async fn email_submission_set(
                     }),
                 );
                 // RFC 8621 §6.4 onSuccess chaining: the submission
-                // succeeded — apply onSuccessUpdateEmail (a patch over
+                // succeeded - apply onSuccessUpdateEmail (a patch over
                 // the draft, typically `keywords: {$draft: null, $seen:
                 // true}` + a Sent mailbox move) or destroy it
                 // (onSuccessDestroyEmail).
@@ -1073,7 +1073,7 @@ pub async fn email_submission_set(
     }))
 }
 
-/// RFC 8621 §6.4 — apply `onSuccessUpdateEmail`: a standard Email/set
+/// RFC 8621 §6.4 - apply `onSuccessUpdateEmail`: a standard Email/set
 /// patch over the submitted draft (keywords nulling + mailbox moves).
 async fn chain_update_email(
     state: &crate::data_api::AppState,
@@ -1104,7 +1104,7 @@ async fn chain_update_email(
     Ok(())
 }
 
-/// RFC 8621 §6.4 — destroy the draft after successful submission
+/// RFC 8621 §6.4 - destroy the draft after successful submission
 /// (membership rows removed + tombstone; the IMAP EXPUNGE semantics).
 async fn chain_destroy_email(
     state: &crate::data_api::AppState,
@@ -1144,7 +1144,7 @@ async fn chain_destroy_email(
     Ok(())
 }
 
-/// `PushSubscription/set` — create/update/destroy push subscriptions
+/// `PushSubscription/set` - create/update/destroy push subscriptions
 /// (RFC 8620 §7.2 + RFC 8887 §5). New subscriptions get a verification
 /// code; the store marks them unverified until the client posts the
 /// code back through the push endpoint.

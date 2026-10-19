@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Sentin8:Bus consumer — reacts to `sentin8:auth:user:created` events
+//! Sentin8:Bus consumer - reacts to `sentin8:auth:user:created` events
 //! and provisions Email8 principals + bootstrap mailboxes (the
 //! event-driven env-init pattern; integration design §4).
 
@@ -13,7 +13,7 @@ use futures_util::StreamExt;
 use sqlx::PgPool;
 
 const CONSUMER_GROUP: &str = "email8:store:provisioner";
-/// Stream family Sentin8:Auth emits to (auth/src/events.rs) — the
+/// Stream family Sentin8:Auth emits to (auth/src/events.rs) - the
 /// provisioner must subscribe here to see `sentin8:auth:user:created`.
 const EVENT_STREAM_FAMILY: &str = "auth";
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
@@ -40,10 +40,10 @@ async fn run(pool: PgPool, bus_client: sentin8::bus::client::BusClient) {
                     "email8:store: bus SSE connected to stream family '{EVENT_STREAM_FAMILY}'"
                 );
                 sse_loop(&pool, &bus_client, resp).await;
-                tracing::info!("email8:store: bus SSE disconnected — reconnecting");
+                tracing::info!("email8:store: bus SSE disconnected - reconnecting");
             }
             Err(e) => {
-                tracing::warn!(error = %e, "email8:store: bus consume failed — reconnecting");
+                tracing::warn!(error = %e, "email8:store: bus consume failed - reconnecting");
             }
         }
         tokio::time::sleep(RECONNECT_DELAY).await;
@@ -74,7 +74,7 @@ async fn sse_loop(
 
             // The Bus SSE payload is the serialized `ConsumeMessage`
             // (bus/src/sse.rs): id/message_id, env_id, event_type, data
-            // fields. Parse the JSON directly — axum's SSE frames carry
+            // fields. Parse the JSON directly - axum's SSE frames carry
             // only `id:`/`data:` (no `event:` line).
             let msg: serde_json::Value = match serde_json::from_str(
                 event_str
@@ -91,7 +91,7 @@ async fn sse_loop(
                 None => continue,
             };
             // env_id + message_id live on the ConsumeMessage (stream
-            // fields), not inside the event payload — auth's
+            // fields), not inside the event payload - auth's
             // `sentin8:auth:user:created` payload only carries
             // {email, user_id}.
             let env_id = msg
@@ -118,7 +118,7 @@ async fn sse_loop(
                     .nack(EVENT_STREAM_FAMILY, CONSUMER_GROUP, &message_id, Some(30))
                     .await;
             } else if !message_id.is_empty() {
-                // ACK on success — without it the entry stays in the
+                // ACK on success - without it the entry stays in the
                 // group's PEL forever, and because every XAUTOCLAIM claim
                 // resets the entry's idle clock it would never be
                 // re-delivered (or eventually dropped) after the first
@@ -166,14 +166,14 @@ async fn handle_event(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
     if email.is_empty() {
-        return Ok(()); // no address — nothing to provision for mail
+        return Ok(()); // no address - nothing to provision for mail
     }
 
     // PROVRLS-1: the tenant context is transaction-local
-    // (`set_config(..., true)`) — on an autocommit connection it
+    // (`set_config(..., true)`) - on an autocommit connection it
     // evaporates before the next statement and RLS rejects the insert
     // (design §1.1 defect 2). Stamp + provision share ONE explicit
-    // transaction on ONE connection (§4.3d). `p_subject_id` is TEXT —
+    // transaction on ONE connection (§4.3d). `p_subject_id` is TEXT -
     // bind the sub as its string form.
     let mut tx = pool.begin().await?;
     let _ = sqlx::query(

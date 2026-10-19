@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Core mail store operations — the single writer for the mail tables.
+//! Core mail store operations - the single writer for the mail tables.
 //!
 //! Every function takes a connection that ALREADY has the mail tenant
 //! context set (`auth::set_mail_tenant_context`) on the SAME connection
 //! (§4.3d). Document ids come from `sequences`; the change log
-//! gets one row per touched collection — all inside one transaction held
+//! gets one row per touched collection - all inside one transaction held
 //! by the caller.
 //!
 //! Design: `email8/design/sentin8-email8-store-technical-design.md` §6.
@@ -66,7 +66,7 @@ pub async fn allocate_ids(
     Ok(upsert)
 }
 
-/// The next change id for (account, collection) — allocates one.
+/// The next change id for (account, collection) - allocates one.
 async fn next_change_id(
     conn: &mut PgConnection,
     account_id: Uuid,
@@ -84,7 +84,7 @@ async fn next_change_id(
 // ── Provisioning (the `sentin8:auth:user:created` consumer) ───────────────
 
 /// Provision a principal + bootstrap mailboxes + default identity.
-/// Idempotent on (env_id, sub) — re-running returns the existing id.
+/// Idempotent on (env_id, sub) - re-running returns the existing id.
 ///
 /// Runs inside the CALLER'S transaction with the tenant context already
 /// stamped on the same connection (PROVRLS-1 design §2.1): the env-tier
@@ -92,7 +92,7 @@ async fn next_change_id(
 /// existence SELECT sees prior rows under the same in-transaction
 /// context (at-least-once redelivery never duplicates). Before the
 /// holder-tier child writes (addresses/mailboxes) the account binding
-/// is stamped in the same transaction — the id is known by then, so
+/// is stamped in the same transaction - the id is known by then, so
 /// `app.account_id` admits the children without env-admin elevation.
 pub async fn provision_principal(
     conn: &mut PgConnection,
@@ -145,7 +145,7 @@ pub async fn provision_principal(
 }
 
 /// Stamp the holder-tier account binding on the provision connection
-/// (same transaction — the caller's context stamp and this binding both
+/// (same transaction - the caller's context stamp and this binding both
 /// live until the enclosing COMMIT; the child-table policies
 /// `account_id = sentin8_current_account_id()` admit the bootstrap
 /// writes for the freshly created principal).
@@ -267,7 +267,7 @@ pub async fn ingest_email(
     if mailboxes.is_empty() {
         mailboxes = vec![inbox_id];
     }
-    // Spam re-file: ≥50 goes to Junk instead of INBOX — UNLESS a ham
+    // Spam re-file: ≥50 goes to Junk instead of INBOX - UNLESS a ham
     // override fires (design §2.3): the sender is in the recipient's
     // address book, or the message replies to something they sent
     // (In-Reply-To/References match their own Message-IDs).
@@ -292,7 +292,7 @@ pub async fn ingest_email(
 
     // Search corpus: headers + preview (the FTS index tokenizes this).
     let search_text = build_search_text(&parsed, raw);
-    // Story 2.6 — detect the tsvector language once at ingest; the
+    // Story 2.6 - detect the tsvector language once at ingest; the
     // search path picks the matching text-search config per row.
     let fts_lang = email8::mail_core::detect_tsvector_lang(&search_text);
 
@@ -418,7 +418,7 @@ pub async fn ingest_email(
     .await?;
 
     // iMIP detection (RFC 6047, story 4.6 inbound): a text/calendar
-    // MIME part with a METHOD makes this a scheduling message — file a
+    // MIME part with a METHOD makes this a scheduling message - file a
     // calendar event row (upsert on UID) and surface the method/uid in
     // the outcome so the event consumer emits the groupware event.
     let (imip_method, imip_uid) = detect_imip(&parsed, raw);
@@ -449,7 +449,7 @@ pub async fn ingest_email(
     })
 }
 
-/// What an ingest produced — feeds the `email8:mail:email:ingested` event.
+/// What an ingest produced - feeds the `email8:mail:email:ingested` event.
 #[derive(Debug, Clone)]
 pub struct IngestOutcome {
     pub email_id: Uuid,
@@ -460,7 +460,7 @@ pub struct IngestOutcome {
     pub is_spam: bool,
     pub size: i64,
     /// iMIP (RFC 6047): the message carried a text/calendar part with
-    /// a METHOD — the consumer files the calendar event + emits
+    /// a METHOD - the consumer files the calendar event + emits
     /// `email8:groupware:event:{created,updated,cancelled}`.
     pub is_imip: bool,
     /// The iTIP METHOD (REQUEST | REPLY | CANCEL | REFRESH) when iMIP.
@@ -693,11 +693,11 @@ fn build_search_text(parsed: &ParsedMessage, raw: &[u8]) -> String {
 }
 /// iMIP detection: scan the raw MIME parts for `Content-Type:
 /// text/calendar` with a `METHOD=` param; extract the VCALENDAR's
-/// METHOD + UID. Returns (method, uid) — both None when not an iMIP.
+/// METHOD + UID. Returns (method, uid) - both None when not an iMIP.
 /// iMIP detection (RFC 6047) via the MIME tree walker (story 2.1):
 /// every `text/calendar` part (transport-decoded) is scanned for the
 /// METHOD (Content-Type param wins, then the VCALENDAR's METHOD:
-/// property) and the VEVENT UID. Returns (method, uid) — both None when
+/// property) and the VEVENT UID. Returns (method, uid) - both None when
 /// the message carries no calendar part.
 fn detect_imip(parsed: &ParsedMessage, raw: &[u8]) -> (Option<String>, Option<String>) {
     let _ = parsed;
@@ -740,7 +740,7 @@ async fn file_calendar_event(
     method: Option<&str>,
 ) -> StoreResult<Option<String>> {
     // Parse the transport-decoded calendar part (MIME walker, story 2.1)
-    // rather than the whole raw message — base64/qp parts decode right.
+    // rather than the whole raw message - base64/qp parts decode right.
     let parts = email8::mail_core::walk_parts(raw);
     let cals = email8::mail_core::calendar_bodies(raw, &parts);
     let Some(cal_bytes) = cals.first() else {
@@ -777,7 +777,7 @@ async fn file_calendar_event(
     .fetch_optional(&mut *conn)
     .await?;
     let Some(calendar_id) = calendar_id else {
-        return Ok(Some(uid)); // no calendar provisioned — skip silently
+        return Ok(Some(uid)); // no calendar provisioned - skip silently
     };
     let event_id = Uuid::new_v4();
     sqlx::query(

@@ -24,14 +24,14 @@ pub async fn build_state(core: sentin8::shell::ServiceCore) -> anyhow::Result<Ap
         ),
     };
 
-    // Sentin8:Policy (Phase 28, §4.2b — shell-owned boot): the shell's
+    // Sentin8:Policy (Phase 28, §4.2b - shell-owned boot): the shell's
     // boot step 8 already booted the engine (refuse-to-start, shared deps,
     // hot-reload consumer, stat emitter). Services only consume it. The
     // engine published into `core.admin` is the SAME instance the step-5
     // gate evaluates.
 
     // Cert-presenting Bus client (CERTFREE-4V): the `email8:store`
-    // workload certificate IS the identity — no DCR, no token (auth
+    // workload certificate IS the identity - no DCR, no token (auth
     // DESIGN §4.3f). Fail-soft: an unreachable Acme at first boot
     // disables the consumer this boot; the next boot retries.
     let issuer = std::env::var("SENTIN8_AUTH_ISSUER")
@@ -48,13 +48,13 @@ pub async fn build_state(core: sentin8::shell::ServiceCore) -> anyhow::Result<Ap
     if let Ok(bc) = &bus_client {
         crate::event_consumer::spawn(state.core.pool.clone(), bc.clone());
     } else {
-        tracing::warn!(error = ?bus_client.err(), "email8:store: bus certificate not ready — provisioning consumer disabled this boot");
+        tracing::warn!(error = ?bus_client.err(), "email8:store: bus certificate not ready - provisioning consumer disabled this boot");
     }
 
     // Cert-identity authorization record for the internal data API
     // (auth DESIGN §4.3f): boot-load the workload registry map the
     // cert-first gate resolves against. Fail-open-with-warning on an
-    // unreachable Valkey at boot — the bearer path (user/delegated)
+    // unreachable Valkey at boot - the bearer path (user/delegated)
     // serves while certificate-workload calls fail-closed until the
     // next boot (the map is normally published by enroll BEFORE
     // services start). The load presents THIS service's certificate
@@ -66,7 +66,7 @@ pub async fn build_state(core: sentin8::shell::ServiceCore) -> anyhow::Result<Ap
     {
         Ok(map) => map,
         Err(e) => {
-            tracing::warn!(error = %e, "email8:store: workload registry map unavailable at boot — certificate-workload calls fail-closed until next boot");
+            tracing::warn!(error = %e, "email8:store: workload registry map unavailable at boot - certificate-workload calls fail-closed until next boot");
             sentin8::auth::workload_registry::WorkloadMap::boot_load_empty("email8:store")
         }
     };
@@ -138,7 +138,7 @@ pub fn routes(router: axum::Router<AppState>) -> axum::Router<AppState> {
             "/v1/admin/{*page}",
             post(crate::admin_data::admin_data).get(crate::admin_ui::get_admin_ui),
         )
-        // ── Sentin8:Policy admin API (Phase 28 §3.6 — shared
+        // ── Sentin8:Policy admin API (Phase 28 §3.6 - shared
         // implementation; handlers generic over this state via
         // HasPolicyAdmin).
         .route(

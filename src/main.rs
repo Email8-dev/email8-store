@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Sentin8 Email8:Store — mail/collaboration data core + JMAP API.
+//! Sentin8 Email8:Store - mail/collaboration data core + JMAP API.
 //!
 //! See `email8/design/sentin8-email8-store-technical-design.md`.
 //!

@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Admin data endpoints (RFW data sources) — `POST /v1/admin/{page}`.
+//! Admin data endpoints (RFW data sources) - `POST /v1/admin/{page}`.
 //!
 //! Every admin handler enforces the §5.1 hardening: `target_env_id`
 //! REQUIRED (no fallback to the token's env), RLS context set on the same
@@ -20,13 +20,13 @@ use crate::auth;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct AdminQuery {
-    /// REQUIRED — the env being administered (§5.1 hardening).
+    /// REQUIRED - the env being administered (§5.1 hardening).
     pub target_env_id: Option<Uuid>,
     #[serde(default)]
     pub account_id: Option<Uuid>,
 }
 
-/// `POST /v1/admin/{page}` — data for the admin viewer pages.
+/// `POST /v1/admin/{page}` - data for the admin viewer pages.
 #[utoipa::path(
     post,
     path = "/v1/admin/{page}",
@@ -61,7 +61,7 @@ pub async fn admin_data(
     )
     .await?;
 
-    // PROVRLS-1: explicit transaction — the context stamp is
+    // PROVRLS-1: explicit transaction - the context stamp is
     // transaction-local (set_config(..., true)) and would evaporate
     // before the data query on an autocommit connection.
     let mut tx = state.pool.begin().await.map_err(err_db)?;

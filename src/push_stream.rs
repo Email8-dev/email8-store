@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! SSE push stream — the `email8:push:state:changed` bus consumer that
+//! SSE push stream - the `email8:push:state:changed` bus consumer that
 //! feeds `GET /jmap/eventsource` subscribers.
 //!
 //! P1 polls the changelog head per subscriber (cheap: one indexed MAX per
@@ -22,7 +22,7 @@ const SQL_HEAD_STATE: &str = "SELECT \
     COALESCE((SELECT MAX(change_id) FROM email8.changelog WHERE account_id = $1 AND collection = 1), 0)";
 
 /// The current `{Type: changeId}` state map for an account (JMAP RFC
-/// 8620 §7.1) — the payload both the SSE `event: state` and the RFC
+/// 8620 §7.1) - the payload both the SSE `event: state` and the RFC
 /// 8887 WebSocket `StateChange` push consume.
 pub async fn current_state(
     conn: &mut sqlx::PgConnection,
@@ -55,7 +55,7 @@ pub fn state_stream(
         let mut last_state: Option<String> = None;
         loop {
             // Resolve the account binding for this subscriber (re-resolve
-            // cheaply each tick — the row is indexed and this paces at
+            // cheaply each tick - the row is indexed and this paces at
             // 1 Hz).
             let Ok(mut conn) = pool.acquire().await else {
                 tokio::time::sleep(Duration::from_secs(2)).await;

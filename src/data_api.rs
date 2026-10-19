@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Internal data API — the typed service-to-service surface Mta, Access
+//! Internal data API - the typed service-to-service surface Mta, Access
 //! and Apps call (M2M-authenticated). Also carries the user context of
 //! the *originating* caller via headers when proxied (master design §4.8).
 
@@ -26,7 +26,7 @@ use sqlx::Row;
 use crate::{auth, config::StoreConfig, store_ops};
 
 /// Service state: the service config + the shell `ServiceCore`
-/// (pool + Sentin8:Policy engine + shared admin surface — Phase 28 §3.6).
+/// (pool + Sentin8:Policy engine + shared admin surface - Phase 28 §3.6).
 /// The engine inside `core.admin` is the SAME instance the step-5 gate
 /// evaluates, so admin writes and request-time decisions agree.
 /// (`ServiceCore` is not `Clone`; `Arc` gives the cheap axum-state clone.)
@@ -35,13 +35,13 @@ pub struct AppState {
     pub config: Arc<StoreConfig>,
     pub pool: sqlx::PgPool,
     pub core: std::sync::Arc<sentin8::shell::ServiceCore>,
-    /// The boot-loaded workload registry map — the authorization
+    /// The boot-loaded workload registry map - the authorization
     /// record for cert-presenting internal callers (auth DESIGN
     /// §4.3f; group DESIGN.md §3.1).
     pub workload_registry: sentin8::auth::workload_registry::WorkloadMap,
 }
 
-/// `POST /v1/internal/resolve` — RCPT resolution (sub-addressing, aliases,
+/// `POST /v1/internal/resolve` - RCPT resolution (sub-addressing, aliases,
 /// catch-all, group expansion).
 #[utoipa::path(
     post,
@@ -102,7 +102,7 @@ pub async fn resolve_address(
     }
 }
 
-/// `POST /v1/internal/ingest` — local delivery filing.
+/// `POST /v1/internal/ingest` - local delivery filing.
 #[utoipa::path(
     post,
     path = "/v1/internal/ingest",
@@ -173,7 +173,7 @@ pub async fn ingest(
         }),
     )
     .await;
-    // Story 4.6 — an iMIP (RFC 6047 text/calendar) ingest is also a
+    // Story 4.6 - an iMIP (RFC 6047 text/calendar) ingest is also a
     // groupware domain event: the calendar row was filed, so fan out the
     // event-driven notification for apps (webmail, mobile) and triggers.
     if outcome.is_imip {
@@ -232,7 +232,7 @@ pub async fn ingest(
     }))
 }
 
-/// `GET /v1/internal/mailboxes?env_id=&account_id=` — list an account's
+/// `GET /v1/internal/mailboxes?env_id=&account_id=` - list an account's
 /// mailboxes (Access services bootstrap their session cache from this).
 #[derive(Debug, serde::Deserialize)]
 pub struct ListMailboxesQuery {
@@ -291,7 +291,7 @@ pub async fn list_mailboxes(
     ))
 }
 
-/// `POST /v1/internal/mailboxes` — create a mailbox.
+/// `POST /v1/internal/mailboxes` - create a mailbox.
 #[utoipa::path(
     post,
     path = "/v1/internal/mailboxes",
@@ -350,7 +350,7 @@ pub async fn create_mailbox(
     }))
 }
 
-/// `POST /v1/internal/changes` — changelog window (JMAP/IMAP sync).
+/// `POST /v1/internal/changes` - changelog window (JMAP/IMAP sync).
 #[utoipa::path(
     post,
     path = "/v1/internal/changes",
@@ -398,7 +398,7 @@ pub async fn changes_since(
     }))
 }
 
-/// `POST /v1/internal/submit` — enqueue a submission into the Mta queue.
+/// `POST /v1/internal/submit` - enqueue a submission into the Mta queue.
 /// Store proxies to Mta (it owns the queue); the response is Mta's.
 #[utoipa::path(
     post,
@@ -424,7 +424,7 @@ pub async fn submit(
     )
     .await?;
     // Verify the user's identity binding: return_path must be one of the
-    // caller's addresses (master design §4.4 — enforced again at Mta).
+    // caller's addresses (master design §4.4 - enforced again at Mta).
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, &_a, req.env_id, req.account_id).await;
     let known: Option<i64> = sqlx::query_scalar(
@@ -470,7 +470,7 @@ pub async fn submit(
     Ok(Json(verdict))
 }
 
-/// `POST /v1/internal/blob-quota` — upload quota gate.
+/// `POST /v1/internal/blob-quota` - upload quota gate.
 #[utoipa::path(
     post,
     path = "/v1/internal/blob-quota",
@@ -521,7 +521,7 @@ pub async fn blob_quota(
     }))
 }
 
-/// `GET /v1/internal/email/{email_id}` — fetch one email's metadata (Access
+/// `GET /v1/internal/email/{email_id}` - fetch one email's metadata (Access
 /// FETCH path) with mailbox membership.
 #[derive(Debug, serde::Deserialize)]
 pub struct EmailPath {
@@ -605,7 +605,7 @@ pub async fn get_email(
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-/// `GET /v1/internal/mailbox/emails?env_id=&account_id=&mailbox_id=` —
+/// `GET /v1/internal/mailbox/emails?env_id=&account_id=&mailbox_id=` -
 /// a mailbox's messages (id, uid, size, flags) for POP3/IMAP projections.
 #[derive(Debug, serde::Deserialize)]
 pub struct MailboxEmailsQuery {
@@ -667,7 +667,7 @@ pub async fn list_mailbox_emails(
     Ok(Json(serde_json::json!({ "items": items })))
 }
 
-/// `POST /v1/internal/emails/destroy` — batch expunge (POP3 QUIT, IMAP
+/// `POST /v1/internal/emails/destroy` - batch expunge (POP3 QUIT, IMAP
 /// EXPUNGE). Only removes the membership row (message moves to no
 /// mailbox → eligible for GC; the POP3/IMAP destroy is a membership
 /// delete + `destroyed` changelog entries).
@@ -735,7 +735,7 @@ pub async fn destroy_emails(
     ))
 }
 
-/// `POST /v1/internal/email/store` — store the raw blob for an APPEND
+/// `POST /v1/internal/email/store` - store the raw blob for an APPEND
 /// (IMAP/POP3 upload path): bytes → Storage, blob-hash returned.
 #[utoipa::path(
     post,
@@ -788,7 +788,7 @@ fn blake3_hash(data: &[u8]) -> String {
     blake3::hash(data).to_hex().to_string()
 }
 
-/// `POST /v1/internal/email/keywords` — flag set/clear (IMAP STORE).
+/// `POST /v1/internal/email/keywords` - flag set/clear (IMAP STORE).
 #[derive(Debug, serde::Deserialize)]
 pub struct KeywordsRequest {
     pub env_id: Uuid,
@@ -887,7 +887,7 @@ pub async fn set_email_keywords(
     Ok(Json(serde_json::json!({ "updated": true })))
 }
 
-/// `POST /v1/internal/emails/copy` — membership add (IMAP COPY/MOVE).
+/// `POST /v1/internal/emails/copy` - membership add (IMAP COPY/MOVE).
 #[derive(Debug, serde::Deserialize)]
 pub struct CopyEmailsRequest {
     pub env_id: Uuid,
@@ -949,7 +949,7 @@ pub async fn copy_emails(
     Ok(Json(serde_json::json!({ "copied": req.email_ids.len() })))
 }
 
-/// `POST /v1/internal/ingest/append` — IMAP APPEND / POP3-compatible
+/// `POST /v1/internal/ingest/append` - IMAP APPEND / POP3-compatible
 /// upload: raw bytes → blob → email row + membership in one call.
 #[derive(Debug, serde::Deserialize)]
 pub struct AppendRequest {
@@ -1037,7 +1037,7 @@ pub struct SieveBase {
     pub name: Option<String>,
 }
 
-/// `POST /v1/internal/sieve/list` — the account's scripts + active flag.
+/// `POST /v1/internal/sieve/list` - the account's scripts + active flag.
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/list",
@@ -1094,7 +1094,7 @@ pub struct SieveGet {
     pub name: String,
 }
 
-/// `POST /v1/internal/sieve/get` — one script's source (from Storage).
+/// `POST /v1/internal/sieve/get` - one script's source (from Storage).
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/get",
@@ -1157,7 +1157,7 @@ pub struct SievePut {
     pub source: String,
 }
 
-/// `POST /v1/internal/sieve/put` — store a compiled script (blob →
+/// `POST /v1/internal/sieve/put` - store a compiled script (blob →
 /// Storage, row upsert).
 #[utoipa::path(
     post,
@@ -1234,7 +1234,7 @@ pub struct SieveActive {
     pub name: Option<String>,
 }
 
-/// `POST /v1/internal/sieve/setactive` — flip the active script (only one
+/// `POST /v1/internal/sieve/setactive` - flip the active script (only one
 /// may be active; the row flips + the account pointer updates).
 #[utoipa::path(
     post,
@@ -1314,7 +1314,7 @@ pub struct SieveDelete {
     pub name: String,
 }
 
-/// `POST /v1/internal/sieve/delete` — remove a script row.
+/// `POST /v1/internal/sieve/delete` - remove a script row.
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/delete",
@@ -1361,7 +1361,7 @@ pub struct SieveRename {
     pub to: String,
 }
 
-/// `POST /v1/internal/sieve/rename` — rename a script.
+/// `POST /v1/internal/sieve/rename` - rename a script.
 #[utoipa::path(
     post,
     path = "/v1/internal/sieve/rename",
@@ -1446,10 +1446,10 @@ async fn fetch_blob(state: &AppState, blob_hash: &str) -> Result<Vec<u8>, (Statu
 }
 
 /// Append an event to the local `email8.outbox` (OUTBOX-EMAIL8,
-/// architecture-principles §6.7 — the DBX producer path). The row is
+/// architecture-principles §6.7 - the DBX producer path). The row is
 /// relayed to Bus `POST /v1/produce` post-commit by the shell's 8b task
 /// (idempotency_key = row id; consumers dedupe). The shared-schema note:
-/// email8 keeps every table in `email8` — the helper's unqualified
+/// email8 keeps every table in `email8` - the helper's unqualified
 /// `outbox` resolves through the service role's search_path.
 async fn emit_event(
     pool: &sqlx::PgPool,
@@ -1466,7 +1466,7 @@ async fn emit_event(
 }
 // ── ACL grants + effective rights (story 2.7) ─────────────────────────────
 
-/// `POST /v1/internal/acl/grant` — grant rights on one document.
+/// `POST /v1/internal/acl/grant` - grant rights on one document.
 #[derive(Debug, serde::Deserialize)]
 pub struct AclGrantRequest {
     pub env_id: Uuid,
@@ -1537,7 +1537,7 @@ pub async fn acl_grant(
     Ok(Json(serde_json::json!({ "granted": true })))
 }
 
-/// `POST /v1/internal/acl/revoke` — remove a grant.
+/// `POST /v1/internal/acl/revoke` - remove a grant.
 #[derive(Debug, serde::Deserialize)]
 pub struct AclRevokeRequest {
     pub env_id: Uuid,
@@ -1600,7 +1600,7 @@ pub async fn acl_revoke(
 }
 
 /// `GET /v1/internal/acl/rights?env_id&grantee_account_id&collection&document_id`
-/// — effective rights for a grantee on one document (the union of
+/// - effective rights for a grantee on one document (the union of
 /// direct grants; owners implicitly hold everything).
 #[derive(Debug, serde::Deserialize)]
 pub struct AclRightsQuery {

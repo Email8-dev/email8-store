@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 // SPDX-License-Identifier: Apache-2.0
 
-//! Email8:Store admin UI (RFW) — page definitions served to Sentin8:Dash.
+//! Email8:Store admin UI (RFW) - page definitions served to Sentin8:Dash.
 
 use axum::{
     extract::{Path, State},
@@ -16,7 +16,7 @@ use sentin8::rfw::widget::*;
 
 use crate::data_api::AppState;
 
-/// `GET /v1/admin/ui/{page}` — RFW definition for the requested page.
+/// `GET /v1/admin/ui/{page}` - RFW definition for the requested page.
 #[utoipa::path(
     get,
     path = "/v1/admin/{page}",

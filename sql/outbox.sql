@@ -15,7 +15,7 @@
 -- schema (unchanged).
 --
 -- The relay is spawned per shell boot with the service leaf's notify
--- channel (`store_outbox_changed`) — the trigger below notifies it.
+-- channel (`store_outbox_changed`) - the trigger below notifies it.
 CREATE SCHEMA IF NOT EXISTS store;
 CREATE TABLE IF NOT EXISTS store.outbox (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -3,7 +3,7 @@
 -- SPDX-FileCopyrightText: Copyright Contributors to the Email8:Store
 -- SPDX-License-Identifier: Apache-2.0
 
--- Email8:Store — mail/collaboration data core.
+-- Email8:Store - mail/collaboration data core.
 --
 -- Replaces the legacy KV subspaces (p/i/l/n/a/t/k/d/s/b/g) with real
 -- relational tables. Every tenant table carries env_id + account_id and
@@ -48,10 +48,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS email8_pa_uniq_addr
     ON email8.principal_addresses (env_id, lower(address));
 
 -- ── Domains (mail domains served by this tenant) ────────────────────────
--- NO RLS BY DESIGN (PROVRLS-1 design §1.1 defect 4 — the bank8-fdx
+-- NO RLS BY DESIGN (PROVRLS-1 design §1.1 defect 4 - the bank8-fdx
 -- `provider_profiles` precedent): the MTA's MX/AUTH path resolves a
 -- recipient domain to its env via `SELECT env_id … WHERE lower(name) =
--- $1` BEFORE any tenant context exists — the env is the thing being
+-- $1` BEFORE any tenant context exists - the env is the thing being
 -- discovered, so an env-tier policy hides every row from the only
 -- reader that needs it. Writes stay scoped by the service roles'
 -- grants; admin mutations are Shield-gated at the API surface.
@@ -196,13 +196,13 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- Principals: the account root row. Env-tier for ALL operations
--- (PROVRLS-1 — the bank8 `customers` precedent for root holder
+-- (PROVRLS-1 - the bank8 `customers` precedent for root holder
 -- tables): RLS admits any in-context writer in the env; the service
 -- layer decides who may create rows (admin surfaces are Shield-gated
 -- on `email8:admin:users`, provisioning rides the bus consumer's m2m
 -- context). SELECT additionally admits the holder-match on the auth
 -- user link (`sentin8_auth_user_id`), env admins, and the M2M-only
--- `holder:view-all` branch (bank8 `accounts_select` shape) — user
+-- `holder:view-all` branch (bank8 `accounts_select` shape) - user
 -- paths see their own row without the email8-local `app.account_id`
 -- binding, so `bind_account`'s discovery SELECT is not circular.
 ALTER TABLE email8.principals ENABLE ROW LEVEL SECURITY;
@@ -303,7 +303,7 @@ CREATE TABLE IF NOT EXISTS email8.identities (
 
 -- ── Sieve scripts ────────────────────────────────────────────────────────
 
--- ── DNSBL zone config (story 5.2 — per-env zone set for the MTA gate) ─────
+-- ── DNSBL zone config (story 5.2 - per-env zone set for the MTA gate) ─────
 CREATE TABLE IF NOT EXISTS email8.dnsbl_zones (
     env_id        UUID NOT NULL,
     zone          TEXT NOT NULL,
@@ -556,10 +556,10 @@ END $$;
 -- schema (no per-service schemas), so the outbox lives in `email8.outbox`
 -- and BOTH service roles' search_paths (`mta, email8, public` /
 -- `store, email8, public`) resolve the relay's unqualified `FROM outbox`
--- to this shared table. Two relays (mta + store) drain it — safe by the
+-- to this shared table. Two relays (mta + store) drain it - safe by the
 -- platform contract: at-least-once produce + consumers dedupe on
 -- `idempotency_key` (= outbox row id). The trigger notifies BOTH relay
--- channels ({leaf}_outbox_changed per shell boot, leaf = mta|store — the
+-- channels ({leaf}_outbox_changed per shell boot, leaf = mta|store - the
 -- shared-schema layout diverges from outbox_table_sql's single-schema
 -- default, so the channels are explicit).
 CREATE TABLE IF NOT EXISTS email8.outbox (
@@ -605,7 +605,7 @@ CREATE TRIGGER outbox_notify_trigger
     FOR EACH ROW
     EXECUTE FUNCTION email8.notify_outbox_changed();
 
--- The relay's drain calls sentin8_outbox_unrelayed_envs() (outbox crate) —
+-- The relay's drain calls sentin8_outbox_unrelayed_envs() (outbox crate) -
 -- a SECURITY DEFINER helper that must exist in the DB; email8's init
 -- creates it over the shared table (IF NOT EXISTS from any service's
 -- init keeps the pair idempotent).

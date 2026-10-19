@@ -7,7 +7,7 @@
 //!
 //! Verifies the Sentin8:Auth bearer token, resolves the tenant context
 //! (`env_id`), and binds the caller's Sentin8:Auth user `sub` to the
-//! `principals` row — the "has mail in this env" mapping
+//! `principals` row - the "has mail in this env" mapping
 //! (integration design §4). The resolved `MailAuth` is what handlers
 //! thread into RLS context setters (`app.account_id`).
 
@@ -41,16 +41,16 @@ impl MailAuth {
 }
 
 /// Verify the bearer token and make the step-5 Sentin8:Policy decision
-/// for the primary action. The scope list is gone — the Shield scope-mirror
+/// for the primary action. The scope list is gone - the Shield scope-mirror
 /// set seeded by `vertical enroll` (registration.rs) IS the authorization
 /// (policy design §4.3: step 5 is THE decision; no post-verify JWT scope
 /// check remains). The mail-account binding is deferred to [`bind_account`]
-/// — it needs a tenant-context connection (the principals table is
+/// - it needs a tenant-context connection (the principals table is
 /// RLS-protected).
 ///
 /// CERTIFICATE-FIRST (CERTFREE-4V, auth DESIGN §4.3f): when the TLS
 /// handshake presented an enrolled platform-workload certificate (the
-/// internal email8 callers — access/mta), the resolved identity is the
+/// internal email8 callers - access/mta), the resolved identity is the
 /// authentication and the scope check runs against the registry map row;
 /// otherwise the request falls through to the bearer path (user/delegated
 /// JWT flows unchanged).
@@ -87,9 +87,9 @@ pub async fn require_mail_auth(
 
 /// The certificate path of [`require_mail_auth`]: resolve the presented
 /// workload certificate against the boot-loaded registry map (the
-/// authorization record — scopes + enabled), run the same step-5 policy
+/// authorization record - scopes + enabled), run the same step-5 policy
 /// decision, and build the mail context WITHOUT a user binding (the
-/// internal callers carry the account ids in their request bodies —
+/// internal callers carry the account ids in their request bodies -
 /// `bind_account` is a user-flow concept).
 ///
 /// # Errors
@@ -130,7 +130,7 @@ async fn require_workload_auth(
 /// PROVRLS-1: the caller stamps the auth-user id in the same
 /// transaction, so the `principals` holder-match SELECT branch
 /// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`)
-/// admits the row — the binding is not circular.
+/// admits the row - the binding is not circular.
 pub async fn bind_account(
     conn: &mut PgConnection,
     mail: &MailAuth,
@@ -154,13 +154,13 @@ pub async fn bind_account(
 
 /// Set the extended mail tenant context on a connection the caller has
 /// ALREADY put inside an explicit transaction (PROVRLS-1: the context is
-/// `set_config(..., true)` — transaction-local; on an autocommit
+/// `set_config(..., true)` - transaction-local; on an autocommit
 /// connection it evaporates before the next statement and RLS rejects
-/// the query — design §1.1 defect 2, §4.3d same-connection rule).
+/// the query - design §1.1 defect 2, §4.3d same-connection rule).
 ///
-/// Stamps the caller's full claim set — including the auth-user id,
+/// Stamps the caller's full claim set - including the auth-user id,
 /// which admits the `principals` holder-match policy branch
-/// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`) —
+/// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`) -
 /// and binds `app.account_id` for the holder-scoped child-table
 /// policies. MUST be awaited on the same connection as the data query.
 pub async fn set_mail_tenant_context(
