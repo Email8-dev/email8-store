@@ -206,7 +206,12 @@ async fn dispatch(
     // PROVRLS-1: the context stamp is transaction-local - begin the
     // transaction FIRST, stamp inside it, and let the object handler run
     // on the same connection for the whole batch method.
-    let mut tx = state.pool.begin().await.map_err(|e| e.to_string()).map_err(err_string)?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| e.to_string())
+        .map_err(err_string)?;
     auth::set_mail_tenant_context(&mut tx, m, m.env_id(), account_id).await;
 
     match (object, verb) {
@@ -306,9 +311,10 @@ async fn dispatch(
             v
         }
         ("PushSubscription", "set") => {
-            let v = crate::jmap_objects::push_subscription_set(&mut tx, m.env_id(), account_id, &args)
-                .await
-                .map_err(err_string);
+            let v =
+                crate::jmap_objects::push_subscription_set(&mut tx, m.env_id(), account_id, &args)
+                    .await
+                    .map_err(err_string);
             let _ = tx.commit().await;
             v
         }

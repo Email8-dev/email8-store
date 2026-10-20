@@ -827,15 +827,13 @@ pub async fn list_mailbox_emails(
     .map_err(err_db)?;
     let items: Vec<MailboxEmailRow> = rows
         .iter()
-        .map(|r| {
-            MailboxEmailRow {
-                id: r.get::<Uuid, _>("id"),
-                uid: r.get::<i64, _>("imap_uid").max(0) as u32,
-                size: r.get::<i64, _>("size"),
-                keywords: r.get::<Vec<String>, _>("keywords"),
-                subject: r.get::<Option<String>, _>("subject"),
-                received_at: r.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
-            }
+        .map(|r| MailboxEmailRow {
+            id: r.get::<Uuid, _>("id"),
+            uid: r.get::<i64, _>("imap_uid").max(0) as u32,
+            size: r.get::<i64, _>("size"),
+            keywords: r.get::<Vec<String>, _>("keywords"),
+            subject: r.get::<Option<String>, _>("subject"),
+            received_at: r.get::<chrono::DateTime<chrono::Utc>, _>("received_at"),
         })
         .collect();
     tx.commit().await.map_err(err_db)?;
@@ -1121,7 +1119,9 @@ pub async fn copy_emails(
         .map_err(err_db)?;
     }
     tx.commit().await.map_err(err_db)?;
-    Ok(Json(CopiedCount { copied: req.email_ids.len() }))
+    Ok(Json(CopiedCount {
+        copied: req.email_ids.len(),
+    }))
 }
 
 /// `POST /v1/internal/ingest/append` - IMAP APPEND / POP3-compatible

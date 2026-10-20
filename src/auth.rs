@@ -174,17 +174,15 @@ pub async fn set_mail_tenant_context(
     let scope = m.auth.claims.scope.clone();
     let is_platform_admin = m.auth.is_platform_admin();
     let is_env_admin = m.auth.claims.is_env_admin();
-    let _ = sqlx::query(
-        "SELECT sentin8_set_tenant_context($1, $2, $3, $4, $5, false, $6, $2)",
-    )
-    .bind(env_id)
-    .bind(&sub)
-    .bind(&token_tp)
-    .bind(&scope)
-    .bind(is_platform_admin)
-    .bind(is_env_admin)
-    .execute(&mut *tx)
-    .await;
+    let _ = sqlx::query("SELECT sentin8_set_tenant_context($1, $2, $3, $4, $5, false, $6, $2)")
+        .bind(env_id)
+        .bind(&sub)
+        .bind(&token_tp)
+        .bind(&scope)
+        .bind(is_platform_admin)
+        .bind(is_env_admin)
+        .execute(&mut *tx)
+        .await;
     let _ = sqlx::query("SELECT set_config('app.account_id', $1::text, true)")
         .bind(account_id.to_string())
         .execute(&mut *tx)

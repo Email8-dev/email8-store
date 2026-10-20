@@ -79,4 +79,5 @@ use utoipa::OpenApi;
         (name = "policy", description = "Shield policy administration (shared surface)"),
         (name = "email8-store", description = "Sentin8 Email8:Store - mail data core + JMAP API"),
     ),
-)]pub struct StoreOpenApi;
+)]
+pub struct StoreOpenApi;
