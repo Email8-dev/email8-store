@@ -23,7 +23,7 @@ use serde_json::json;
 use crate::{auth, data_api::AppState};
 
 /// `GET /jmap/session` - the RFC 8620 session resource.
-// ── JMAP protocol DTOs (OAPEC-9; RFC 8620 dynamic surface) ────────────────
+// ── JMAP protocol DTOs (RFC 8620 dynamic surface) ────────────────
 
 /// The JMAP `session` document (RFC 8620 §2): capability objects are
 /// extension-defined, so the document is dynamic - documented as a
@@ -85,7 +85,7 @@ pub async fn session(
     let account_id = if m.account_id != Uuid::nil() {
         m.account_id
     } else {
-        // PROVRLS-1: context + binding SELECT share ONE transaction -
+        // context + binding SELECT share ONE transaction -
         // the transaction-local context evaporates on autocommit.
         let mut tx = state.pool.begin().await.map_err(err_db)?;
         auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), Uuid::nil()).await;
@@ -152,7 +152,7 @@ pub async fn api(
     let req = jmap::parse(&body).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Resolve the account binding once for the whole batch.
-    // PROVRLS-1: explicit transaction - the context is transaction-local.
+    // explicit transaction - the context is transaction-local.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), m.account_id).await;
     let account_id = auth::bind_account(&mut tx, &m).await?;
@@ -203,7 +203,7 @@ async fn dispatch(
     verb: &str,
     args: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    // PROVRLS-1: the context stamp is transaction-local - begin the
+    // the context stamp is transaction-local - begin the
     // transaction FIRST, stamp inside it, and let the object handler run
     // on the same connection for the whole batch method.
     let mut tx = state
@@ -438,7 +438,7 @@ async fn handle_ws_batch(
     req: jmap::JmapRequest,
 ) -> String {
     let mut resp = jmap::JmapResponse::new();
-    // PROVRLS-1: explicit transaction - the context is transaction-local.
+    // explicit transaction - the context is transaction-local.
     let Ok(mut tx) = state.pool.begin().await else {
         resp.push_error("serverFail", "ws".to_string());
         return resp.to_json().to_string();
@@ -479,7 +479,7 @@ async fn handle_ws_batch(
 /// `None` when there is no change since the last emission (tracked by
 /// the caller's changelog MAX snapshot diff inside `current_state`).
 async fn ws_state_change(state: &AppState, m: &auth::MailAuth) -> Option<serde_json::Value> {
-    // PROVRLS-1: explicit transaction - context + query share one tx.
+    // explicit transaction - context + query share one tx.
     let mut tx = state.pool.begin().await.ok()?;
     auth::set_mail_tenant_context(&mut tx, m, m.env_id(), m.account_id).await;
     let account_id = auth::bind_account(&mut tx, m).await.ok()?;
@@ -605,7 +605,7 @@ pub async fn upload(
         )
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
-    // PROVRLS-1: explicit transaction - the context stamp is
+    // explicit transaction - the context stamp is
     // transaction-local; the blob_links insert shares the tx.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
     auth::set_mail_tenant_context(&mut tx, &m, m.env_id(), account_id).await;

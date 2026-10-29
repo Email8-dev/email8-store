@@ -297,7 +297,7 @@ Consumed: `sentin8:auth:user:created` (§2 provisioning sequence).
 - **Tenant stamping**: `set_mail_tenant_context` writes `app.env_id`
   AND `app.account_id` in ONE explicit transaction that the data
   queries share; account-tier RLS reads `sentin8_current_account_id()`.
-- **RLS tiers** (PROVRLS-1): account tables holder-or-admin; changelog
+- **RLS tiers** : account tables holder-or-admin; changelog
   owner-only; env tables env-scoped; `principals` env + holder SELECT
   match; `domains` NO-RLS discovery catalog (MTA pre-tenant MX path).
 - **Certificate identity**: registered workloads `email8:store`

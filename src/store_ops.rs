@@ -87,7 +87,7 @@ async fn next_change_id(
 /// Idempotent on (env_id, sub) - re-running returns the existing id.
 ///
 /// Runs inside the CALLER'S transaction with the tenant context already
-/// stamped on the same connection (PROVRLS-1 design §2.1): the env-tier
+/// stamped on the same connection (design §2.1): the env-tier
 /// `principals` policies admit the m2m consumer's writes, and the
 /// existence SELECT sees prior rows under the same in-transaction
 /// context (at-least-once redelivery never duplicates). Before the

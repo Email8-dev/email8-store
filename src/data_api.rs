@@ -43,7 +43,7 @@ pub struct AppState {
 
 /// `POST /v1/internal/resolve` - RCPT resolution (sub-addressing, aliases,
 /// catch-all, group expansion).
-// ── Typed response envelopes (OAPEC-9; OAPEC JMAP semantics) ──────────────
+// ── Typed response envelopes (OAPEC JMAP semantics) ──────────────
 
 /// An email with its mailbox memberships (wire mirror of the stored doc;
 /// `metadata` stays a value field per JMAP).

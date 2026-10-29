@@ -169,7 +169,7 @@ async fn handle_event(
         return Ok(()); // no address - nothing to provision for mail
     }
 
-    // PROVRLS-1: the tenant context is transaction-local
+    // the tenant context is transaction-local
     // (`set_config(..., true)`) - on an autocommit connection it
     // evaporates before the next statement and RLS rejects the insert
     // (design §1.1 defect 2). Stamp + provision share ONE explicit

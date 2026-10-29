@@ -48,7 +48,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS email8_pa_uniq_addr
     ON email8.principal_addresses (env_id, lower(address));
 
 -- ── Domains (mail domains served by this tenant) ────────────────────────
--- NO RLS BY DESIGN (PROVRLS-1 design §1.1 defect 4 - the bank8-fdx
+-- NO RLS BY DESIGN (design §1.1 defect 4 - the bank8-fdx
 -- `provider_profiles` precedent): the MTA's MX/AUTH path resolves a
 -- recipient domain to its env via `SELECT env_id … WHERE lower(name) =
 -- $1` BEFORE any tenant context exists - the env is the thing being
@@ -196,7 +196,7 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- Principals: the account root row. Env-tier for ALL operations
--- (PROVRLS-1 - the bank8 `customers` precedent for root holder
+-- (- the bank8 `customers` precedent for root holder
 -- tables): RLS admits any in-context writer in the env; the service
 -- layer decides who may create rows (admin surfaces are Shield-gated
 -- on `email8:admin:users`, provisioning rides the bus consumer's m2m

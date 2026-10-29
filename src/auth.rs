@@ -127,7 +127,7 @@ async fn require_workload_auth(
 /// Complete the account binding on a connection that already has the
 /// standard tenant context set. Returns the (possibly zero) principal id.
 ///
-/// PROVRLS-1: the caller stamps the auth-user id in the same
+/// the caller stamps the auth-user id in the same
 /// transaction, so the `principals` holder-match SELECT branch
 /// (`sentin8_auth_user_id = sentin8_current_sentin8_auth_user_id()`)
 /// admits the row - the binding is not circular.
@@ -153,7 +153,7 @@ pub async fn bind_account(
 }
 
 /// Set the extended mail tenant context on a connection the caller has
-/// ALREADY put inside an explicit transaction (PROVRLS-1: the context is
+/// ALREADY put inside an explicit transaction (the context is
 /// `set_config(..., true)` - transaction-local; on an autocommit
 /// connection it evaporates before the next statement and RLS rejects
 /// the query - design §1.1 defect 2, §4.3d same-connection rule).

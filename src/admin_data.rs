@@ -62,7 +62,7 @@ pub async fn admin_data(
     )
     .await?;
 
-    // PROVRLS-1: explicit transaction - the context stamp is
+    // explicit transaction - the context stamp is
     // transaction-local (set_config(..., true)) and would evaporate
     // before the data query on an autocommit connection.
     let mut tx = state.pool.begin().await.map_err(err_db)?;
