@@ -31,7 +31,7 @@ graph TD
   the env-tier root (writes service-layer-gated; SELECT admits the
   auth-user holder-match), and `domains` as the NO-RLS mail-domain→env
   discovery catalog (the MTA resolves recipient domains pre-tenant -
-  the bank8-fdx `provider_profiles` precedent; design
+  the openfin8-ca `provider_profiles` precedent; design
   `../../design/sentin8-provisioned-rls-and-telemetry-design.md`).
   The tenant context is transaction-local: every stamp + query
   sequence runs inside ONE explicit transaction on ONE connection.
