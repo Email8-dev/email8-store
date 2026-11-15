@@ -520,7 +520,7 @@ pub async fn download(
     let client = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:read"],
+        &["sentin8:storage:env:read"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
@@ -591,7 +591,7 @@ pub async fn upload(
     let client = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:read"],
+        &["sentin8:storage:env:read"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;

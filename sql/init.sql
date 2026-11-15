@@ -485,6 +485,8 @@ BEGIN
                             AND (
                                 account_id = sentin8_current_account_id()
                                 OR sentin8_is_env_admin()
+                                OR (sentin8_has_scope('holder:view-all')
+                                    AND sentin8_current_token_tp() = 'm2m')
                             ))
                     )
                 ) WITH CHECK (
@@ -495,6 +497,8 @@ BEGIN
                             AND (
                                 account_id = sentin8_current_account_id()
                                 OR sentin8_is_env_admin()
+                                OR (sentin8_has_scope('holder:view-all')
+                                    AND sentin8_current_token_tp() = 'm2m')
                             ))
                     )
                 )$f$,
@@ -542,7 +546,11 @@ CREATE POLICY email8_changelog_tenant ON email8.changelog FOR ALL USING (
 
 
 -- Per-service grants (enrollment also creates these roles; the local dev
--- flow re-runs this SQL idempotently).
+-- flow re-runs this SQL idempotently). ALL four email8 service roles get
+-- the shared-schema access their workloads need (E2E-GRANT-1: the access
+-- role's IMAP/POP3 sessions read principals/mailboxes/emails directly;
+-- the mta's queue/pump reads the shared queue tables; the gate reads
+-- nothing - included for symmetry with its audit journal).
 DO $$
 BEGIN
     EXECUTE 'GRANT USAGE ON SCHEMA email8 TO email8_store_service';
@@ -550,6 +558,29 @@ BEGIN
     EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA email8 TO email8_store_service';
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'store grants skip: %', SQLERRM;
+END $$;
+DO $$
+BEGIN
+    EXECUTE 'GRANT USAGE ON SCHEMA email8 TO email8_access_service';
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA email8 TO email8_access_service';
+    EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA email8 TO email8_access_service';
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'access grants skip: %', SQLERRM;
+END $$;
+DO $$
+BEGIN
+    EXECUTE 'GRANT USAGE ON SCHEMA email8 TO email8_mta_service';
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA email8 TO email8_mta_service';
+    EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA email8 TO email8_mta_service';
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'mta grants skip: %', SQLERRM;
+END $$;
+DO $$
+BEGIN
+    EXECUTE 'GRANT USAGE ON SCHEMA email8 TO email8_gate_service';
+    EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA email8 TO email8_gate_service';
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'gate grants skip: %', SQLERRM;
 END $$;
 -- ── Local outbox (OUTBOX-EMAIL8, architecture-principles §6.7) ──────────
 -- The DBX producer path: email8 keeps ALL tables in the shared `email8`

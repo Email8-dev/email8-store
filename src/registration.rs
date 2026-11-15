@@ -91,7 +91,25 @@ const M2M_GRANTS: &[M2mGrant] = &[
             "email8:mail:write",
             "email8:mail:receive",
             "sentin8:bus:consume",
+            // Message blobs (ingest + JMAP APPEND → Storage
+            // put_if_absent; Email/get body fetches → get): the data
+            // core owns the blob-link ledger, so its workload carries
+            // the blob read/write scopes (the PLATFORM vocabulary
+            // `sentin8:storage:env:*` - the unprefixed form 403s at
+            // Storage's scope-mirror).
+            "sentin8:storage:env:write",
+            "sentin8:storage:env:read",
         ],
+    },
+    M2mGrant {
+        // The TLS-plane hostname resolver's lookup workload (TLS-RLS-4,
+        // the database-free HostContextResolver): cache-miss calls Sys
+        // `GET /v1/resolve/hostname`. Without this declared row every
+        // user-token request 401s at identity resolution ("workload
+        // 'email8-store-tls' is not enrolled" - found by the e2e
+        // lifecycle suite).
+        workload: "email8-store-tls",
+        scopes: &["sentin8:sys:instances:read"],
     },
     M2mGrant {
         // Shield hot-reload consumer (- see email8-access).

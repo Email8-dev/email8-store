@@ -320,7 +320,15 @@ pub async fn ingest_email(
     .bind(parsed.preview(raw, 160))
     .bind(parsed.has_attachment(raw))
     .bind(spam_percentage)
-    .bind(serde_json::json!({"body_offset": parsed.body_offset, "fts_lang": fts_lang}))
+    // The metadata document carries the parsed envelope fields the JMAP
+    // Email/get renders (E2E-META-1: `from`/`to` were absent and every
+    // delivered message rendered a null sender).
+    .bind(serde_json::json!({
+        "body_offset": parsed.body_offset,
+        "fts_lang": fts_lang,
+        "from": parsed.from_address(),
+        "to": parsed.to_addresses(),
+    }))
     .bind(tkey)
     .bind(search_text)
     .execute(&mut *conn)

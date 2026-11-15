@@ -6,11 +6,23 @@
 //! Sentin8:Bus consumer - reacts to `sentin8:auth:user:created` events
 //! and provisions Email8 principals + bootstrap mailboxes (the
 //! event-driven env-init pattern; integration design §4).
+//!
+//! BUSENV-1 (the env-declaration contract): auth publishes
+//! `sentin8:auth:user:created` to the SIGN-UP ENV's stream
+//! (`bus:{env_id}:{family}`) - the SYSTEM-env stream only carries
+//! system-env users (platform operator sign-ups). A consumer using the
+//! legacy SYSTEM form (`sse_consume(family, group)`) NEVER sees
+//! tenant-env sign-ups. This provisioner keeps ONE declared-env
+//! consumer per known tenant env (the `email8.domains` registry -
+//! re-discovered every reconnect so fresh tenants join without a
+//! restart).
 
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 use futures_util::StreamExt;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 const CONSUMER_GROUP: &str = "email8:store:provisioner";
 /// Stream family Sentin8:Auth emits to (auth/src/events.rs) - the
@@ -18,7 +30,8 @@ const CONSUMER_GROUP: &str = "email8:store:provisioner";
 const EVENT_STREAM_FAMILY: &str = "auth";
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 
-/// Spawn the Bus consumer background task.
+/// Spawn the Bus consumer background task (the per-env fan-out lives in
+/// `run` - each known tenant env gets its own declared-env consumer).
 pub fn spawn(
     pool: PgPool,
     bus_client: sentin8::bus::client::BusClient,
@@ -28,25 +41,81 @@ pub fn spawn(
     })
 }
 
+/// The tenant envs worth provisioning for - one consumer per env. The
+/// `email8.domains` catalog is the mail-plane's own env registry
+/// (env-scoped, NO-RLS on purpose: the pre-tenant discovery surface).
+async fn discover_envs(pool: &PgPool) -> BTreeSet<Uuid> {
+    sqlx::query_scalar("SELECT DISTINCT env_id FROM email8.domains WHERE is_enabled")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect()
+}
+
 async fn run(pool: PgPool, bus_client: sentin8::bus::client::BusClient) {
-    tracing::info!("email8:store: provisioning consumer started (group={CONSUMER_GROUP}, family={EVENT_STREAM_FAMILY})");
+    tracing::info!("email8:store: provisioning consumer started (group={CONSUMER_GROUP}, family={EVENT_STREAM_FAMILY}, per-env declared streams)");
+    // The re-discovery cadence: the SSE consumers are long-lived, so a
+    // fresh tenant (new mail domain) would NEVER join mid-stream - the
+    // discovery set is re-polled and new envs attach without tearing
+    // down the existing consumers. 2s: a freshly-registered tenant's
+    // sign-up flow must not race a long discovery window.
+    const DISCOVER_TICK: Duration = Duration::from_secs(2);
+    let mut current: BTreeSet<Uuid> = BTreeSet::new();
+    // Persistent task set: consumers stay attached across discovery
+    // ticks (an abort would drop a healthy stream).
+    let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
     loop {
-        match bus_client
-            .sse_consume(EVENT_STREAM_FAMILY, CONSUMER_GROUP)
-            .await
-        {
-            Ok(resp) => {
-                tracing::info!(
-                    "email8:store: bus SSE connected to stream family '{EVENT_STREAM_FAMILY}'"
-                );
-                sse_loop(&pool, &bus_client, resp).await;
-                tracing::info!("email8:store: bus SSE disconnected - reconnecting");
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "email8:store: bus consume failed - reconnecting");
+        let envs = discover_envs(&pool).await;
+        if envs.is_empty() {
+            tracing::info!("email8:store: no mail domains registered - no tenant streams to consume");
+            tokio::time::sleep(RECONNECT_DELAY).await;
+            continue;
+        }
+        // Spawn consumers for NEWLY discovered envs; existing consumers
+        // keep running in the same JoinSet.
+        for env_id in envs.difference(&current).copied().collect::<Vec<_>>() {
+            tracing::info!(%env_id, "email8:store: attaching provisioning consumer for env");
+            tasks.spawn(env_consumer(
+                pool.clone(),
+                bus_client.clone(),
+                env_id,
+            ));
+        }
+        current = envs;
+        // A discovery tick OR any consumer exit wakes the loop; the
+        // JoinSet is NOT aborted here (a tick must not kill healthy
+        // streams) - only a finished/exited task is reaped.
+        tokio::select! {
+            _ = tokio::time::sleep(DISCOVER_TICK) => {}
+            Some(_) = tasks.join_next() => {
+                tracing::info!("email8:store: a provisioning stream ended - it will re-attach on the next discovery tick");
             }
         }
-        tokio::time::sleep(RECONNECT_DELAY).await;
+    }
+}
+
+/// One declared-env SSE consumer: `sse_consume_env` resolves the
+/// `bus:{env_id}:{family}` stream key, and the ack/nack carry the SAME
+/// env declaration (an undeclared ack writes the SYSTEM-env group -
+/// BUSENV-1: the entry would pend forever).
+async fn env_consumer(
+    pool: PgPool,
+    bus_client: sentin8::bus::client::BusClient,
+    env_id: Uuid,
+) {
+    match bus_client
+        .sse_consume_env(EVENT_STREAM_FAMILY, CONSUMER_GROUP, Some(env_id))
+        .await
+    {
+        Ok(resp) => {
+            tracing::info!(%env_id, "email8:store: bus SSE connected to stream family '{EVENT_STREAM_FAMILY}'");
+            sse_loop(&pool, &bus_client, resp, env_id).await;
+            tracing::info!(%env_id, "email8:store: bus SSE disconnected");
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, %env_id, "email8:store: bus consume failed");
+        }
     }
 }
 
@@ -54,6 +123,7 @@ async fn sse_loop(
     pool: &PgPool,
     bus_client: &sentin8::bus::client::BusClient,
     resp: reqwest::Response,
+    env_id: Uuid,
 ) {
     let mut stream = resp.bytes_stream();
     let mut buffer = String::new();
@@ -94,7 +164,7 @@ async fn sse_loop(
             // fields), not inside the event payload - auth's
             // `sentin8:auth:user:created` payload only carries
             // {email, user_id}.
-            let env_id = msg
+            let msg_env_id = msg
                 .get("env_id")
                 .and_then(|v| v.as_str())
                 .and_then(|s| uuid::Uuid::parse_str(s).ok());
@@ -111,20 +181,23 @@ async fn sse_loop(
                 continue;
             }
 
-            if let Err(e) = handle_event(pool, bus_client, env_id, &event_type, &data).await {
+            if let Err(e) = handle_event(pool, &event_type, &data, msg_env_id.or(Some(env_id))).await {
                 tracing::warn!(error = %e, %event_type, "email8:store: event handling failed");
-                // NACK so the event is retried by another consumer.
+                // NACK for redelivery. NOTE: the SDK's nack has no env
+                // variant (BUSENV-1 covered consume/ack) - the plain form
+                // is the platform surface; a wrongly-env'd nack leaves
+                // the entry to the XAUTOCLAIM sweep (60s redelivery),
+                // so the at-least-once guarantee holds either way.
                 let _ = bus_client
                     .nack(EVENT_STREAM_FAMILY, CONSUMER_GROUP, &message_id, Some(30))
                     .await;
             } else if !message_id.is_empty() {
-                // ACK on success - without it the entry stays in the
-                // group's PEL forever, and because every XAUTOCLAIM claim
-                // resets the entry's idle clock it would never be
-                // re-delivered (or eventually dropped) after the first
-                // reclaim cycle.
+                // ACK on success with the SAME env declaration the
+                // consumer holds (BUSENV-1): an undeclared ack XACKs the
+                // SYSTEM-env stream key and the real entry pends forever
+                // (the XAUTOCLAIM sweep redelivers every 60s).
                 let _ = bus_client
-                    .ack(EVENT_STREAM_FAMILY, CONSUMER_GROUP, &message_id)
+                    .ack_env(EVENT_STREAM_FAMILY, CONSUMER_GROUP, &message_id, Some(env_id))
                     .await;
             }
         }
@@ -136,10 +209,9 @@ async fn sse_loop(
 /// (the stream the event was published to), not the payload.
 async fn handle_event(
     pool: &PgPool,
-    _bus_client: &sentin8::bus::client::BusClient,
-    env_id: Option<uuid::Uuid>,
     event_type: &str,
     data: &str,
+    env_id: Option<uuid::Uuid>,
 ) -> anyhow::Result<()> {
     if event_type != "sentin8:auth:user:created" {
         return Ok(());
@@ -177,6 +249,9 @@ async fn handle_event(
     // bind the sub as its string form.
     let mut tx = pool.begin().await?;
     let _ = sqlx::query(
+        // The CURRENT contract (public_helpers.sql): the 8th param is
+        // `p_sentin8_auth_user_id` UUID - the former `$2` text form
+        // resolved to no overload (E2E-CTX-1).
         "SELECT sentin8_set_tenant_context($1, $2::text, 'm2m', NULL, false, false, false, $2)",
     )
     .bind(env_id)

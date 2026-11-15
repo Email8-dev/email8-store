@@ -174,17 +174,33 @@ pub async fn set_mail_tenant_context(
     let scope = m.auth.claims.scope.clone();
     let is_platform_admin = m.auth.is_platform_admin();
     let is_env_admin = m.auth.claims.is_env_admin();
-    let _ = sqlx::query("SELECT sentin8_set_tenant_context($1, $2, $3, $4, $5, false, $6, $2)")
+    let _ = sqlx::query(
+        // The CURRENT platform contract (public_helpers.sql): the 8th
+        // param is `p_sentin8_auth_user_id` as UUID (position 8), NOT a
+        // repeated subject-id text - the former 8-arg text form resolved
+        // to NO overload and aborted every JMAP transaction with
+        // "function ... does not exist" (E2E-CTX-1, found by the
+        // lifecycle suite).
+        "SELECT sentin8_set_tenant_context($1, $2, $3, $4, $5, false, $6, $7)",
+    )
         .bind(env_id)
         .bind(&sub)
         .bind(&token_tp)
         .bind(&scope)
         .bind(is_platform_admin)
         .bind(is_env_admin)
+        .bind(sentin8_auth_user_id_uuid(m))
         .execute(&mut *tx)
         .await;
     let _ = sqlx::query("SELECT set_config('app.account_id', $1::text, true)")
         .bind(account_id.to_string())
         .execute(&mut *tx)
         .await;
+}
+
+/// The caller's auth sub parsed as the UUID the context contract's 8th
+/// parameter expects (`p_sentin8_auth_user_id`); NULL when the sub is
+/// not a UUID (M2M/actor tokens).
+fn sentin8_auth_user_id_uuid(m: &MailAuth) -> Option<Uuid> {
+    Uuid::parse_str(&m.auth.claims.sub).ok()
 }

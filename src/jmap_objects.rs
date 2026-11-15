@@ -230,9 +230,14 @@ pub async fn email_query(
     let filter = args.get("filter").cloned().unwrap_or(json!({}));
 
     // Build the WHERE clause from the filter object.
+    // Parameter numbering (E2E-QUERY-1, found by the lifecycle suite): the
+    // account_id bind is $1 on every query - the FILTER binds start at $2
+    // (`n` starts at 1). The former zero-start numbered every filter
+    // clause $1+0 = $1, colliding with the account bind (the subject
+    // filter matched the account UUID and returned zero rows).
     let mut clauses: Vec<String> = Vec::new();
     let mut binds: Vec<Value> = Vec::new();
-    let mut n = 0;
+    let mut n = 1;
     if let Some(mailbox) = filter.get("inMailbox").and_then(|v| v.as_str()) {
         n += 1;
         clauses.push(format!(
@@ -284,10 +289,12 @@ pub async fn email_query(
     }
     let total = count_q.fetch_one(&mut *conn).await?;
 
-    // Page the ids: filter binds take $2..$(N+1), limit and position land
-    // directly after them ($(N+2) and $(N+3)).
-    let limit_p = n + 2;
-    let offset_p = n + 3;
+    // Page the ids: the filter binds occupy $2..$n (the last filter's
+    // index is `n`), so limit and position land at $n+1 / $n+2 - NO
+    // gaps (a gapped $n+2/$n+3 form leaves an unused parameter and
+    // Postgres rejects the bind count - E2E-QUERY-1).
+    let limit_p = n + 1;
+    let offset_p = n + 2;
     let page_sql = format!(
         "SELECT id FROM email8.emails WHERE account_id = $1 {where_sql} \
          ORDER BY received_at DESC LIMIT ${limit_p} OFFSET ${offset_p}"

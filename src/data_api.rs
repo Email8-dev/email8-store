@@ -937,7 +937,7 @@ pub async fn store_raw_blob(
     let storage = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:read"],
+        &["sentin8:storage:env:read"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
@@ -1166,7 +1166,7 @@ pub async fn ingest_append(
     let storage = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:write"],
+        &["sentin8:storage:env:write"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
@@ -1308,7 +1308,7 @@ pub async fn sieve_get(
     let storage = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:write"],
+        &["sentin8:storage:env:write"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
@@ -1359,7 +1359,7 @@ pub async fn sieve_put(
     let storage = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:write"],
+        &["sentin8:storage:env:write"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
@@ -1610,7 +1610,7 @@ async fn fetch_blob(state: &AppState, blob_hash: &str) -> Result<Vec<u8>, (Statu
     let client = crate::storage_auth::storage_client(
         &state.pool,
         &state.config.sentin8_storage_url,
-        &["storage:env:read"],
+        &["sentin8:storage:env:read"],
     )
     .await
     .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
