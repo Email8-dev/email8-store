@@ -6,7 +6,8 @@
       "telemetry_property": {
         "slug": "store",
         "name": "Email8:Store Telemetry"
-      }
+      },
+      "exposure": "internal"
     }
   ]
 }
